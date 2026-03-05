@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Tradable",
+    "slug": "tradable",
+    "scheme": "tradable",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      "expo-router",
+      ["expo-web-browser", {"experimentalLauncherActivity": false}],
+      ["expo-location", {
+        "locationWhenInUsePermission": "Tradable needs your location to connect you with nearby pros."
+      }]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.akshayjoshi.tradable",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Tradable needs your location to connect you with nearby pros.",
+        "NSCameraUsageDescription": "Tradable needs camera access for video calls.",
+        "NSMicrophoneUsageDescription": "Tradable needs microphone access for voice calls.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.akshayjoshi.tradable",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    }
+  }
+}

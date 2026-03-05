@@ -78,6 +78,12 @@ web_modules/
 .next
 out
 
+# Expo
+.expo/
+.expo-shared/
+ios/
+android/
+
 # Nuxt.js build / generate output
 .nuxt
 dist
@@ -137,3 +143,4 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+.claude/
