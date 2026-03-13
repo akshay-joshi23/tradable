@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
-import { Button, Text } from "react-native-paper";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from "react-native-paper";
 import {
   AudioSession,
   LiveKitRoom,
@@ -13,7 +13,6 @@ import {
 import { ConnectionState, Track } from "livekit-client";
 
 import { AuthGate } from "../../components/AuthGate";
-import { Screen } from "../../components/Screen";
 import { getLiveKitToken } from "../../lib/api";
 import { useRole } from "../../lib/role";
 
@@ -101,15 +100,23 @@ function CallControls({ onLeave }: { onLeave: () => void }) {
 
   return (
     <View style={styles.controls}>
-      <Button mode="outlined" onPress={toggleMute}>
-        {muted ? "Unmute" : "Mute"}
-      </Button>
-      <Button mode="contained" onPress={onLeave}>
-        Leave
-      </Button>
       <Text style={styles.participantText}>
-        Participants: {(room?.remoteParticipants?.size ?? 0) + 1} (You: {localParticipant?.identity ?? "Guest"})
+        {(room?.remoteParticipants?.size ?? 0) + 1} participant{(room?.remoteParticipants?.size ?? 0) > 0 ? "s" : ""}
       </Text>
+      <View style={styles.controlButtons}>
+        <TouchableOpacity
+          style={[styles.controlBtn, muted && styles.controlBtnActive]}
+          onPress={toggleMute}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.controlBtnText}>{muted ? "🔇" : "🎤"}</Text>
+          <Text style={styles.controlBtnLabel}>{muted ? "Unmute" : "Mute"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.leaveBtn} onPress={onLeave} activeOpacity={0.85}>
+          <Text style={styles.leaveBtnText}>End call</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -122,16 +129,14 @@ export default function CallScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
-      return;
-    }
+    if (!id) return;
     const loadToken = async () => {
       setError(null);
       try {
         const nextToken = await getLiveKitToken(id);
         setToken(nextToken);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load LiveKit token.");
+        setError(err instanceof Error ? err.message : "Failed to load token.");
       }
     };
     loadToken();
@@ -149,20 +154,17 @@ export default function CallScreen() {
 
   return (
     <AuthGate>
-      <Screen>
-        <Text variant="headlineSmall">Live call</Text>
-        {error ? <Text style={{ marginTop: 8 }}>{error}</Text> : null}
-        {!livekitUrl ? (
-          <Text style={{ marginTop: 8, color: "red" }}>
-            LiveKit URL is not configured. Check EXPO_PUBLIC_LIVEKIT_URL.
-          </Text>
+      <View style={styles.container}>
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : !livekitUrl ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>LiveKit URL not configured.</Text>
+          </View>
         ) : token ? (
-          <>
-            <Text style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-              Camera and mic enable after connection.
-            </Text>
-            <View style={styles.room}>
-            <LiveKitRoom
+          <LiveKitRoom
             serverUrl={livekitUrl}
             token={token}
             connect
@@ -174,11 +176,12 @@ export default function CallScreen() {
               console.error("[Call] LiveKit error:", err.message);
               setError(err.message);
             }}
+            style={styles.room}
           >
             <CallErrorBoundary
               fallback={(err) => (
-                <View style={{ padding: 16 }}>
-                  <Text style={{ color: "red" }}>Call UI error: {err.message}</Text>
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Call error: {err.message}</Text>
                 </View>
               )}
             >
@@ -187,36 +190,105 @@ export default function CallScreen() {
               <CallControls onLeave={handleLeave} />
             </CallErrorBoundary>
           </LiveKitRoom>
-            </View>
-          </>
         ) : (
-          <Text style={{ marginTop: 16 }}>Connecting...</Text>
+          <View style={styles.connectingContainer}>
+            <Text style={styles.connectingEmoji}>📹</Text>
+            <Text style={styles.connectingText}>Connecting...</Text>
+          </View>
         )}
-      </Screen>
+      </View>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+  },
   room: {
     flex: 1,
-    marginTop: 16,
   },
   videoGrid: {
     flex: 1,
-    flexDirection: "column",
-    gap: 12,
+    gap: 4,
   },
   video: {
-    width: "100%",
-    height: 220,
-    backgroundColor: "#111",
+    flex: 1,
+    backgroundColor: "#1E293B",
+    borderRadius: 4,
   },
   controls: {
-    marginTop: 16,
-    gap: 12,
+    backgroundColor: "#1E293B",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingBottom: 36,
   },
   participantText: {
-    marginTop: 8,
+    color: "#94A3B8",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  controlButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  controlBtn: {
+    alignItems: "center",
+    backgroundColor: "#334155",
+    borderRadius: 50,
+    width: 64,
+    height: 64,
+    justifyContent: "center",
+  },
+  controlBtnActive: {
+    backgroundColor: "#475569",
+  },
+  controlBtnText: {
+    fontSize: 22,
+  },
+  controlBtnLabel: {
+    color: "#CBD5E1",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  leaveBtn: {
+    backgroundColor: "#DC2626",
+    borderRadius: 50,
+    paddingHorizontal: 28,
+    height: 64,
+    justifyContent: "center",
+  },
+  leaveBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  connectingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  connectingEmoji: {
+    fontSize: 48,
+  },
+  connectingText: {
+    color: "#94A3B8",
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 15,
+    textAlign: "center",
   },
 });

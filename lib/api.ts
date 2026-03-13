@@ -130,10 +130,87 @@ export async function saveProProfile(params: {
   });
 }
 
+// ─── Auth / role ──────────────────────────────────────────────────────────────
+
+export async function getUserRole(): Promise<"customer" | "pro" | null> {
+  try {
+    const data = await request<{ role: string }>("/api/auth/role");
+    return data.role as "customer" | "pro";
+  } catch {
+    return null;
+  }
+}
+
+export async function setUserRole(role: "customer" | "pro"): Promise<"customer" | "pro"> {
+  const data = await request<{ role: string }>("/api/auth/role", {
+    method: "POST",
+    body: JSON.stringify({ role }),
+  });
+  return data.role as "customer" | "pro";
+}
+
+// ─── Browse pros ──────────────────────────────────────────────────────────────
+
+export type ProSummary = {
+  user_id: string;
+  display_name: string | null;
+  full_name: string | null;
+  trade: string;
+  photo_url: string | null;
+  years_of_experience: number | null;
+  consultation_price_cents: number;
+  cal_username: string | null;
+  certifications: string | null;
+};
+
+export async function listPros(trade?: string): Promise<ProSummary[]> {
+  const qs = trade ? `?trade=${encodeURIComponent(trade)}` : "";
+  return request<ProSummary[]>(`/api/pros${qs}`);
+}
+
+// ─── Customer call history ────────────────────────────────────────────────────
+
+export type CustomerCall = {
+  id: string;
+  trade: string;
+  description: string;
+  created_at: string;
+  outcome: {
+    diagnosis: string;
+    estimateMin: number | null;
+    estimateMax: number | null;
+    onsiteNeeded: boolean;
+  } | null;
+};
+
+export async function listCustomerCalls(): Promise<CustomerCall[]> {
+  return request<CustomerCall[]>("/api/customer/calls");
+}
+
+// ─── Pro call history ─────────────────────────────────────────────────────────
+
+export type ProCall = {
+  id: string;
+  trade: string;
+  description: string;
+  created_at: string;
+  outcome: {
+    diagnosis: string;
+    estimateMin: number | null;
+    estimateMax: number | null;
+    onsiteNeeded: boolean;
+  } | null;
+};
+
+export async function listProCalls(): Promise<ProCall[]> {
+  return request<ProCall[]>("/api/pro/calls");
+}
+
 // ─── Stripe ───────────────────────────────────────────────────────────────────
 
 export async function createPaymentIntent(requestId: string): Promise<{
   clientSecret: string;
+  paymentIntentId: string;
   amount: number;
   calUsername: string | null;
 }> {

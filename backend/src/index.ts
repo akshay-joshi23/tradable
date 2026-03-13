@@ -72,6 +72,8 @@ type RequestRecord = {
   trade: string;
   description: string;
   status: string;
+  payment_status: string;
+  amount_paid_cents: number | null;
   created_at: string;
   customer_id: string | null;
   claimed_by: string | null;
@@ -108,7 +110,7 @@ type ProProfileRecord = {
   created_at: string;
 };
 
-type AuthedRequest = express.Request & { userId: string; userEmail: string };
+type AuthedRequest = express.Request & { userId: string; userEmail: string; userRole?: string };
 
 // ─── Response helpers ─────────────────────────────────────────────────────────
 
@@ -142,6 +144,86 @@ const requireAuth = async (
   (req as AuthedRequest).userEmail = user.email ?? "";
   next();
 };
+
+// ─── Role middleware ──────────────────────────────────────────────────────────
+
+const requireUserRole = (allowed: string[]) => async (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const userId = (req as AuthedRequest).userId;
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return fail(res, "Your account type could not be verified. Please sign in again.", 403);
+  }
+
+  if (!allowed.includes(data.role)) {
+    return fail(res, "You don't have permission to do this.", 403);
+  }
+
+  (req as AuthedRequest).userRole = data.role;
+  next();
+};
+
+// ─── Auth/role routes ─────────────────────────────────────────────────────────
+
+app.get("/api/auth/role", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[GET /api/auth/role]", error.message);
+    return fail(res, "Failed to load account type.", 500);
+  }
+
+  if (!data) return fail(res, "No account type set.", 404);
+
+  return ok(res, { role: data.role });
+});
+
+app.post("/api/auth/role", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+  const { role } = req.body;
+
+  if (role !== "customer" && role !== "pro") {
+    return fail(res, "Invalid role.");
+  }
+
+  // Check if user already has a role — never override it
+  const { data: existing } = await supabase
+    .from("user_profiles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) {
+    // Return their existing role (ignore what was sent)
+    return ok(res, { role: existing.role });
+  }
+
+  const { error } = await supabase
+    .from("user_profiles")
+    .insert({ user_id: userId, role });
+
+  if (error) {
+    console.error("[POST /api/auth/role]", error.message);
+    return fail(res, "Failed to set account type.", 500);
+  }
+
+  return ok(res, { role }, 201);
+});
 
 // ─── Haversine distance (miles) ───────────────────────────────────────────────
 
@@ -180,16 +262,26 @@ async function getCalEventTypeForRequest(
 
   const { data: profile, error: profileError } = await supabase
     .from("pro_profiles")
-    .select("cal_username")
+    .select("cal_event_type_id, cal_username")
     .eq("user_id", requestData.claimed_by)
     .single();
 
-  if (profileError || !profile?.cal_username) {
+  if (profileError || !profile) {
     fail(res, "The matched pro hasn't set up their booking profile yet.", 409);
     return null;
   }
 
-  // Fetch the pro's first event type from Cal.com using their username
+  // Use cached event type ID if available (set during pro profile save)
+  if (profile.cal_event_type_id) {
+    return profile.cal_event_type_id as number;
+  }
+
+  // Fall back to live Cal.com lookup if no cached ID
+  if (!profile.cal_username) {
+    fail(res, "The matched pro hasn't set up their booking profile yet.", 409);
+    return null;
+  }
+
   const calRes = await fetch(
     `${CAL_API_BASE}/event-types?username=${encodeURIComponent(profile.cal_username)}`,
     { headers: CAL_HEADERS }
@@ -270,7 +362,7 @@ const calBookingSchema = z.object({
 
 // ─── Request routes ───────────────────────────────────────────────────────────
 
-app.post("/api/requests", requireAuth, async (req, res) => {
+app.post("/api/requests", requireAuth, requireUserRole(["customer"]), async (req, res) => {
   const parsed = createRequestSchema.safeParse(req.body);
   if (!parsed.success) return fail(res, zodMessage(parsed.error));
 
@@ -367,7 +459,7 @@ app.get("/api/requests", requireAuth, async (req, res) => {
   return fail(res, "Provide id or status=open.");
 });
 
-app.post("/api/requests/:requestId/match", requireAuth, async (req, res) => {
+app.post("/api/requests/:requestId/match", requireAuth, requireUserRole(["pro"]), async (req, res) => {
   const { requestId } = req.params;
   const userId = (req as AuthedRequest).userId;
 
@@ -406,7 +498,7 @@ app.post("/api/livekit/token", requireAuth, async (req, res) => {
 
 // ─── Outcome routes ───────────────────────────────────────────────────────────
 
-app.post("/api/outcomes", requireAuth, async (req, res) => {
+app.post("/api/outcomes", requireAuth, requireUserRole(["pro"]), async (req, res) => {
   const parsed = outcomeSchema.safeParse(req.body);
   if (!parsed.success) return fail(res, zodMessage(parsed.error));
 
@@ -432,7 +524,7 @@ app.post("/api/outcomes", requireAuth, async (req, res) => {
 
 // ─── Pro profile routes ───────────────────────────────────────────────────────
 
-app.get("/api/pro/profile", requireAuth, async (req, res) => {
+app.get("/api/pro/profile", requireAuth, requireUserRole(["pro"]), async (req, res) => {
   const userId = (req as AuthedRequest).userId;
 
   const { data, error } = await supabase
@@ -451,7 +543,7 @@ app.get("/api/pro/profile", requireAuth, async (req, res) => {
   return ok(res, data as ProProfileRecord);
 });
 
-app.post("/api/pro/profile", requireAuth, async (req, res) => {
+app.post("/api/pro/profile", requireAuth, requireUserRole(["pro"]), async (req, res) => {
   const parsed = proProfileSchema.safeParse(req.body);
   if (!parsed.success) return fail(res, zodMessage(parsed.error));
 
@@ -461,6 +553,23 @@ app.post("/api/pro/profile", requireAuth, async (req, res) => {
     calUsername, consultationPriceCents, latitude, longitude, serviceRadiusMiles,
   } = parsed.data;
   const userId = (req as AuthedRequest).userId;
+
+  // Resolve and cache the Cal.com event type ID so booking lookups don't
+  // need a live API call every time. Only update if we successfully fetch it.
+  let calEventTypeId: number | null = null;
+  try {
+    const calRes = await fetch(
+      `${CAL_API_BASE}/event-types?username=${encodeURIComponent(calUsername)}`,
+      { headers: CAL_HEADERS }
+    );
+    if (calRes.ok) {
+      const calData = await calRes.json();
+      const eventTypes: { id: number }[] = calData?.data ?? [];
+      if (eventTypes.length > 0) calEventTypeId = eventTypes[0].id;
+    }
+  } catch {
+    console.warn("[POST /api/pro/profile] Cal.com event type fetch failed — will use live lookup as fallback.");
+  }
 
   const { data, error } = await supabase
     .from("pro_profiles")
@@ -481,6 +590,7 @@ app.post("/api/pro/profile", requireAuth, async (req, res) => {
         latitude: latitude ?? null,
         longitude: longitude ?? null,
         service_radius_miles: serviceRadiusMiles ?? null,
+        ...(calEventTypeId !== null ? { cal_event_type_id: calEventTypeId } : {}),
       },
       { onConflict: "user_id" }
     )
@@ -495,11 +605,124 @@ app.post("/api/pro/profile", requireAuth, async (req, res) => {
   return ok(res, data as ProProfileRecord, 201);
 });
 
+// ─── Browse pros ──────────────────────────────────────────────────────────────
+
+app.get("/api/pros", requireAuth, requireUserRole(["customer"]), async (req, res) => {
+  const { trade } = req.query as { trade?: string };
+
+  let query = supabase
+    .from("pro_profiles")
+    .select("user_id, display_name, full_name, trade, photo_url, years_of_experience, consultation_price_cents, cal_username, certifications")
+    .not("cal_username", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (trade) query = query.eq("trade", trade);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("[GET /api/pros]", error.message);
+    return fail(res, "Failed to load pros. Please try again.", 500);
+  }
+
+  return ok(res, data ?? []);
+});
+
+// ─── Customer call history ────────────────────────────────────────────────────
+
+app.get("/api/customer/calls", requireAuth, requireUserRole(["customer"]), async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+
+  const { data: requests, error } = await supabase
+    .from("requests")
+    .select("id, trade, description, status, created_at")
+    .eq("customer_id", userId)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[GET /api/customer/calls]", error.message);
+    return fail(res, "Failed to load call history. Please try again.", 500);
+  }
+
+  if (!requests || requests.length === 0) return ok(res, []);
+
+  const ids = requests.map((r) => r.id);
+  const { data: outcomes } = await supabase
+    .from("outcomes")
+    .select("call_id, diagnosis, estimate_low, estimate_high, onsite_needed")
+    .in("call_id", ids);
+
+  const outcomeMap = new Map((outcomes ?? []).map((o) => [o.call_id, o]));
+
+  const result = requests.map((r) => {
+    const o = outcomeMap.get(r.id);
+    return {
+      ...r,
+      outcome: o
+        ? {
+            diagnosis: o.diagnosis,
+            estimateMin: o.estimate_low ?? null,
+            estimateMax: o.estimate_high ?? null,
+            onsiteNeeded: o.onsite_needed,
+          }
+        : null,
+    };
+  });
+
+  return ok(res, result);
+});
+
+// ─── Pro call history ─────────────────────────────────────────────────────────
+
+app.get("/api/pro/calls", requireAuth, requireUserRole(["pro"]), async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+
+  const { data: requests, error } = await supabase
+    .from("requests")
+    .select("id, trade, description, created_at")
+    .eq("claimed_by", userId)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[GET /api/pro/calls]", error.message);
+    return fail(res, "Failed to load call history. Please try again.", 500);
+  }
+
+  if (!requests || requests.length === 0) return ok(res, []);
+
+  const ids = requests.map((r) => r.id);
+  const { data: outcomes } = await supabase
+    .from("outcomes")
+    .select("call_id, diagnosis, estimate_low, estimate_high, onsite_needed")
+    .in("call_id", ids);
+
+  const outcomeMap = new Map((outcomes ?? []).map((o) => [o.call_id, o]));
+
+  const result = requests.map((r) => {
+    const o = outcomeMap.get(r.id);
+    return {
+      ...r,
+      outcome: o
+        ? {
+            diagnosis: o.diagnosis,
+            estimateMin: o.estimate_low ?? null,
+            estimateMax: o.estimate_high ?? null,
+            onsiteNeeded: o.onsite_needed,
+          }
+        : null,
+    };
+  });
+
+  return ok(res, result);
+});
+
 // ─── Stripe routes ────────────────────────────────────────────────────────────
 
 const PLATFORM_FEE_PERCENT = 0.05;
 
-app.post("/api/stripe/payment-intent", requireAuth, async (req, res) => {
+app.post("/api/stripe/payment-intent", requireAuth, requireUserRole(["customer"]), async (req, res) => {
   if (!stripe) return fail(res, "Payments are not configured yet.", 503);
 
   const { requestId } = req.body;
@@ -537,12 +760,13 @@ app.post("/api/stripe/payment-intent", requireAuth, async (req, res) => {
 
   return ok(res, {
     clientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
     amount,
     calUsername: profile.cal_username,
   });
 });
 
-app.post("/api/stripe/confirm-payment", requireAuth, async (req, res) => {
+app.post("/api/stripe/confirm-payment", requireAuth, requireUserRole(["customer"]), async (req, res) => {
   if (!stripe) return fail(res, "Payments are not configured yet.", 503);
 
   const { requestId, paymentIntentId } = req.body;

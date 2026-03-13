@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Button, Chip, Text } from "react-native-paper";
+import { ActivityIndicator, Button, Text } from "react-native-paper";
 
-import { AuthGate } from "../../components/AuthGate";
-import { Screen } from "../../components/Screen";
-import { RoleGuard } from "../../components/RoleGuard";
-import { claimRequest, getProProfile, listOpenRequests } from "../../lib/api";
-import { Request } from "../../lib/types";
+import { AuthGate } from "../../../components/AuthGate";
+import { RoleGuard } from "../../../components/RoleGuard";
+import { Screen } from "../../../components/Screen";
+import { claimRequest, listOpenRequests } from "../../../lib/api";
+import { Request } from "../../../lib/types";
 
 const TRADE_EMOJI: Record<string, string> = {
   Plumbing: "🚿",
@@ -57,7 +57,7 @@ function RequestCard({
   );
 }
 
-export default function ProDashboardScreen() {
+export default function ActivityTab() {
   const router = useRouter();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,9 +76,7 @@ export default function ProDashboardScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
+  useEffect(() => { loadRequests(); }, []);
 
   const handleClaim = async (requestId: string) => {
     setClaimingId(requestId);
@@ -102,28 +100,10 @@ export default function ProDashboardScreen() {
           >
             <View style={styles.headerRow}>
               <View>
-                <Text style={styles.heading}>Open Jobs</Text>
+                <Text style={styles.heading}>Activity</Text>
                 <Text style={styles.subheading}>
                   {requests.length > 0 ? `${requests.length} available near you` : "Checking your area..."}
                 </Text>
-              </View>
-              <View style={styles.headerActions}>
-                <Chip
-                  icon="history"
-                  onPress={() => router.push("/pro/calls")}
-                  style={styles.historyChip}
-                  textStyle={{ fontSize: 12 }}
-                >
-                  History
-                </Chip>
-                <Chip
-                  icon="camera"
-                  onPress={() => router.push("/media-test")}
-                  style={styles.testChip}
-                  textStyle={{ fontSize: 12 }}
-                >
-                  Test A/V
-                </Chip>
               </View>
             </View>
 
@@ -162,74 +142,17 @@ export default function ProDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 20,
-    marginTop: 8,
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#064E3B",
-    letterSpacing: -0.5,
-  },
-  subheading: {
-    fontSize: 14,
-    color: "#475569",
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-  },
-  historyChip: {
-    backgroundColor: "#ECFDF5",
-  },
-  testChip: {
-    backgroundColor: "#ECFDF5",
-  },
-  errorBanner: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: "#DC2626",
-    fontSize: 14,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-    gap: 12,
-  },
-  loadingText: {
-    color: "#475569",
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0F172A",
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#475569",
-    marginTop: 6,
-    textAlign: "center",
-    paddingHorizontal: 32,
-  },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, marginTop: 8 },
+  heading: { fontSize: 26, fontWeight: "700", color: "#064E3B", letterSpacing: -0.5 },
+  subheading: { fontSize: 14, color: "#475569", marginTop: 2 },
+  errorBanner: { backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16 },
+  errorText: { color: "#DC2626", fontSize: 14 },
+  loadingContainer: { alignItems: "center", paddingVertical: 60, gap: 12 },
+  loadingText: { color: "#475569", fontSize: 14 },
+  emptyContainer: { alignItems: "center", paddingVertical: 60 },
+  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 18, fontWeight: "600", color: "#0F172A" },
+  emptySubtitle: { fontSize: 14, color: "#475569", marginTop: 6, textAlign: "center", paddingHorizontal: 32 },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -243,43 +166,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D1FAE5",
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  tradeTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 6,
-  },
-  tradeEmoji: {
-    fontSize: 14,
-  },
-  tradeName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#065F46",
-  },
-  timeAgo: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
-  description: {
-    fontSize: 15,
-    color: "#334155",
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  claimButton: {
-    borderRadius: 10,
-  },
-  claimButtonContent: {
-    height: 44,
-  },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  tradeTag: { flexDirection: "row", alignItems: "center", backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, gap: 6 },
+  tradeEmoji: { fontSize: 14 },
+  tradeName: { fontSize: 13, fontWeight: "600", color: "#065F46" },
+  timeAgo: { fontSize: 12, color: "#94A3B8" },
+  description: { fontSize: 15, color: "#334155", lineHeight: 22, marginBottom: 16 },
+  claimButton: { borderRadius: 10 },
+  claimButtonContent: { height: 44 },
 });

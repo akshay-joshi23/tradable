@@ -22,11 +22,11 @@ export default function Index() {
   }
 
   if (role === "customer") {
-    return <Redirect href="/customer/new-request" />;
+    return <Redirect href="/customer" />;
   }
 
   if (role === "pro") {
-    return <Redirect href="/pro/dashboard" />;
+    return <Redirect href="/pro" />;
   }
 
   // Session exists but no role yet — wait, don't redirect (avoids login loop)

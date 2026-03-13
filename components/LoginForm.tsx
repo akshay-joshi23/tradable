@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { ActivityIndicator, Button, HelperText, Text, TextInput } from "react-native-paper";
 
 import { Screen } from "./Screen";
@@ -56,7 +56,7 @@ export function LoginForm({ role, title, subtitle }: Props) {
       setError(signInError.message);
       return;
     }
-    setMessage("Magic link sent. Check your email to finish signing in.");
+    setMessage("Magic link sent! Check your email to finish signing in.");
   };
 
   const handleGoogleSignIn = async () => {
@@ -73,44 +73,133 @@ export function LoginForm({ role, title, subtitle }: Props) {
 
   return (
     <Screen>
-      <Text variant="headlineSmall">{title}</Text>
-      <Text style={{ marginTop: 8, marginBottom: 16 }}>{subtitle}</Text>
-      <View style={{ marginBottom: 16 }}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
+      </View>
+
+      <View style={styles.card}>
         <Button
-          mode="contained"
+          mode="outlined"
           loading={googleLoading}
           onPress={handleGoogleSignIn}
           icon="google"
+          style={styles.googleButton}
+          contentStyle={styles.buttonContent}
         >
-          Sign in with Google
+          Continue with Google
         </Button>
-      </View>
-      <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
-        Or sign in with email
-      </Text>
-      <TextInput
-        label="Email"
-        value={email}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        onChangeText={setEmail}
-      />
-      <HelperText type="error" visible={Boolean(error)}>
-        {error}
-      </HelperText>
-      {message ? (
-        <HelperText type="info" visible>
-          {message}
-        </HelperText>
-      ) : null}
-      <View style={{ marginTop: 8 }}>
-        <Button mode="contained" loading={sending} onPress={handleSendLink}>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TextInput
+          label="Email address"
+          value={email}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          onChangeText={setEmail}
+          mode="outlined"
+          style={styles.input}
+        />
+
+        <HelperText type="error" visible={Boolean(error)}>{error}</HelperText>
+
+        {message ? (
+          <View style={styles.successBanner}>
+            <Text style={styles.successText}>✓ {message}</Text>
+          </View>
+        ) : null}
+
+        <Button
+          mode="contained"
+          loading={sending}
+          onPress={handleSendLink}
+          style={styles.submitButton}
+          contentStyle={styles.buttonContent}
+        >
           Send magic link
         </Button>
       </View>
-      <Button mode="text" onPress={() => router.back()} style={{ marginTop: 16 }}>
-        Back
+
+      <Button mode="text" onPress={() => router.back()} style={styles.backButton}>
+        ← Back
       </Button>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    marginTop: 16,
+    marginBottom: 28,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#064E3B",
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: "#64748B",
+    marginTop: 6,
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  googleButton: {
+    borderColor: "#D1FAE5",
+    borderRadius: 12,
+  },
+  buttonContent: {
+    height: 48,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E2E8F0",
+  },
+  dividerText: {
+    color: "#94A3B8",
+    fontSize: 13,
+  },
+  input: {
+    backgroundColor: "#FFFFFF",
+  },
+  successBanner: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 8,
+  },
+  successText: {
+    color: "#059669",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  submitButton: {
+    marginTop: 16,
+    borderRadius: 12,
+  },
+  backButton: {
+    marginTop: 16,
+    alignSelf: "center",
+  },
+});

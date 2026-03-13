@@ -1,6 +1,8 @@
 import * as SecureStore from "expo-secure-store";
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import { getUserRole, setUserRole } from "./api";
+
 export type Role = "customer" | "pro";
 
 type RoleContextValue = {
@@ -20,17 +22,40 @@ export function RoleProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let isMounted = true;
+
     const loadRole = async () => {
-      const stored = await SecureStore.getItemAsync(ROLE_KEY);
-      if (isMounted) {
-        setRoleState(stored as Role | null);
+      // Use SecureStore as a fast cache to avoid a network call on every launch
+      const cached = await SecureStore.getItemAsync(ROLE_KEY);
+      if (cached && isMounted) {
+        setRoleState(cached as Role);
         setLoading(false);
+        // Verify against server in the background — silently fix stale cache
+        getUserRole().then((serverRole) => {
+          if (!isMounted || !serverRole) return;
+          if (serverRole !== cached) {
+            SecureStore.setItemAsync(ROLE_KEY, serverRole);
+            setRoleState(serverRole);
+          }
+        }).catch(() => {/* network unavailable — cached value is fine */});
+        return;
+      }
+
+      // No cache — must fetch from server
+      try {
+        const serverRole = await getUserRole();
+        if (isMounted && serverRole) {
+          await SecureStore.setItemAsync(ROLE_KEY, serverRole);
+          setRoleState(serverRole);
+        }
+      } catch {
+        // No session or server unreachable — user will need to log in
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
+
     loadRole();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const value = useMemo<RoleContextValue>(
@@ -38,8 +63,10 @@ export function RoleProvider({ children }: PropsWithChildren) {
       role,
       loading,
       setRole: async (nextRole) => {
-        await SecureStore.setItemAsync(ROLE_KEY, nextRole);
-        setRoleState(nextRole);
+        // Save to server first — server may return a different role if already set
+        const confirmedRole = await setUserRole(nextRole);
+        await SecureStore.setItemAsync(ROLE_KEY, confirmedRole);
+        setRoleState(confirmedRole);
       },
       clearRole: async () => {
         await SecureStore.deleteItemAsync(ROLE_KEY);
@@ -54,8 +81,6 @@ export function RoleProvider({ children }: PropsWithChildren) {
 
 export function useRole() {
   const context = useContext(RoleContext);
-  if (!context) {
-    throw new Error("useRole must be used within RoleProvider");
-  }
+  if (!context) throw new Error("useRole must be used within RoleProvider");
   return context;
 }

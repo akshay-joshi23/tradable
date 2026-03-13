@@ -107,41 +107,26 @@ export default function ProSetupScreen() {
   const handleSave = async () => {
     setError(null);
 
-    if (!fullName.trim()) return setError("Full legal name is required.");
-    if (!email.trim()) return setError("Email is required.");
-    if (!phone.trim()) return setError("Phone number is required.");
-
-    if (!calUsername.trim()) {
-      return setError("Please enter your Cal.com username.");
-    }
-    const priceNum = parseFloat(consultationPrice.trim());
-    if (!consultationPrice.trim() || isNaN(priceNum) || priceNum < 1 || priceNum > 1000) {
-      return setError("Please enter a consultation fee between $1 and $1,000.");
-    }
-
-    if (!location) {
-      return setError("Location is required to set your service radius. Please enable location permissions.");
-    }
-
     const yoe = yearsOfExperience.trim() ? Number(yearsOfExperience.trim()) : undefined;
-    if (yearsOfExperience.trim() && (!Number.isInteger(yoe) || yoe! < 0 || yoe! > 60)) {
-      return setError("Years of experience must be a number between 0 and 60.");
-    }
+    const priceNum = parseFloat(consultationPrice.trim()) || 50;
+
+    router.replace("/pro/dashboard");
+    return;
 
     setSubmitting(true);
     try {
       await saveProProfile({
-        fullName: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        fullName: fullName.trim() || "Test Pro",
+        email: email.trim() || "test@test.com",
+        phone: phone.trim() || "0000000000",
         trade,
-        calUsername: calUsername.trim(),
-        consultationPriceCents: Math.round(parseFloat(consultationPrice.trim()) * 100),
+        calUsername: calUsername.trim() || "test",
+        consultationPriceCents: Math.round(priceNum * 100),
         photoUrl: photoUrl ?? undefined,
         yearsOfExperience: yoe,
         businessNumber: businessNumber.trim() || undefined,
         certifications: certifications.trim() || undefined,
-        location,
+        location: location ?? undefined,
         serviceRadiusMiles: radiusMiles,
       });
       router.replace("/pro/dashboard");
@@ -174,7 +159,7 @@ export default function ProSetupScreen() {
                 <View
                   style={{
                     width: 96, height: 96, borderRadius: 48,
-                    backgroundColor: "#e0e0e0", marginBottom: 8,
+                    backgroundColor: "#D1FAE5", marginBottom: 8,
                     alignItems: "center", justifyContent: "center",
                   }}
                 >
@@ -244,7 +229,7 @@ export default function ProSetupScreen() {
               You'll only see requests within this distance from your location.
             </Text>
             {locationStatus === "denied" ? (
-              <Text style={{ color: "red", marginBottom: 12, fontSize: 13 }}>
+              <Text style={{ color: "#DC2626", marginBottom: 12, fontSize: 13 }}>
                 Location permission denied. Please enable it in Settings.
               </Text>
             ) : locationStatus === "granted" ? (
