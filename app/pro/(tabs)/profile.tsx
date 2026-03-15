@@ -7,7 +7,6 @@ import { AuthGate } from "../../../components/AuthGate";
 import { RoleGuard } from "../../../components/RoleGuard";
 import { Screen } from "../../../components/Screen";
 import { getProProfile } from "../../../lib/api";
-import { useAuth } from "../../../lib/auth";
 import { useRole } from "../../../lib/role";
 import { supabase } from "../../../lib/supabase";
 import { ProProfile } from "../../../lib/types";
@@ -18,6 +17,14 @@ const TRADE_EMOJI: Record<string, string> = {
   HVAC: "❄️",
   Appliance: "🔌",
   Handyman: "🔧",
+};
+
+const TRADE_COLOR: Record<string, string> = {
+  Plumbing: "#0EA5E9",
+  Electrical: "#F59E0B",
+  HVAC: "#6366F1",
+  Appliance: "#EC4899",
+  Handyman: "#059669",
 };
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -56,9 +63,11 @@ export default function ProfileTab() {
   };
 
   const emoji = profile ? (TRADE_EMOJI[profile.trade] ?? "🔧") : "";
+  const tradeColor = profile ? (TRADE_COLOR[profile.trade] ?? "#059669") : "#059669";
   const priceFormatted = profile
-    ? `$${(profile.consultation_price_cents / 100).toFixed(0)} / consultation`
+    ? `$${(profile.consultation_price_cents / 100).toFixed(0)}`
     : "";
+  const displayName = profile ? (profile.display_name ?? profile.full_name ?? "Pro") : "";
 
   return (
     <AuthGate>
@@ -69,22 +78,32 @@ export default function ProfileTab() {
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#065F46" />
+                <ActivityIndicator color="#059669" size="small" />
               </View>
             ) : profile ? (
               <>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarEmoji}>{emoji}</Text>
+                <View style={styles.profileHeader}>
+                  <View style={[styles.avatar, { backgroundColor: tradeColor + "18" }]}>
+                    <Text style={styles.avatarEmoji}>{emoji}</Text>
+                  </View>
+                  <View style={styles.profileInfo}>
+                    <Text style={styles.name}>{displayName}</Text>
+                    <View style={styles.tradeBadge}>
+                      <View style={[styles.tradeDot, { backgroundColor: tradeColor }]} />
+                      <Text style={[styles.tradeLabel, { color: tradeColor }]}>{profile.trade}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.rateBox}>
+                    <Text style={styles.rateAmount}>{priceFormatted}</Text>
+                    <Text style={styles.rateLabel}>per call</Text>
+                  </View>
                 </View>
-                <Text style={styles.name}>{profile.display_name ?? profile.full_name ?? "Pro"}</Text>
-                <Text style={styles.trade}>{profile.trade}</Text>
 
+                <Text style={styles.sectionLabel}>Account Details</Text>
                 <View style={styles.card}>
                   <InfoRow label="Email" value={profile.email ?? "—"} />
                   <View style={styles.divider} />
                   <InfoRow label="Phone" value={profile.phone ?? "—"} />
-                  <View style={styles.divider} />
-                  <InfoRow label="Rate" value={priceFormatted} />
                   {profile.years_of_experience != null && (
                     <>
                       <View style={styles.divider} />
@@ -111,35 +130,38 @@ export default function ProfileTab() {
                   style={styles.editButton}
                   contentStyle={styles.buttonContent}
                   icon="pencil-outline"
+                  textColor="#059669"
                 >
                   Edit Profile
                 </Button>
               </>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>👤</Text>
                 <Text style={styles.emptyTitle}>Profile not set up</Text>
+                <Text style={styles.emptySubtitle}>Complete your profile to start taking jobs.</Text>
                 <Button
                   mode="contained"
                   onPress={() => router.push("/pro/setup")}
                   style={styles.setupButton}
                   contentStyle={styles.buttonContent}
+                  buttonColor="#059669"
                 >
                   Complete Setup
                 </Button>
               </View>
             )}
 
-            <Button
-              mode="text"
-              onPress={handleSignOut}
-              loading={signingOut}
-              style={styles.signOutButton}
-              labelStyle={styles.signOutLabel}
-              icon="logout"
-            >
-              Sign Out
-            </Button>
+            <View style={styles.signOutRow}>
+              <Button
+                mode="text"
+                onPress={handleSignOut}
+                loading={signingOut}
+                labelStyle={styles.signOutLabel}
+                icon="logout"
+              >
+                Sign Out
+              </Button>
+            </View>
           </ScrollView>
         </Screen>
       </RoleGuard>
@@ -148,28 +170,68 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
-  heading: { fontSize: 26, fontWeight: "700", color: "#064E3B", letterSpacing: -0.5, marginTop: 8, marginBottom: 20 },
+  heading: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+    marginTop: 4,
+    marginBottom: 24,
+  },
   loadingContainer: { alignItems: "center", paddingVertical: 60 },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+    gap: 12,
+  },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#D1FAE5",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 12,
+    flexShrink: 0,
   },
-  avatarEmoji: { fontSize: 32 },
-  name: { fontSize: 20, fontWeight: "700", color: "#0F172A", textAlign: "center" },
-  trade: { fontSize: 14, color: "#065F46", fontWeight: "600", textAlign: "center", marginBottom: 24, marginTop: 2 },
+  avatarEmoji: { fontSize: 24 },
+  profileInfo: { flex: 1, gap: 4 },
+  name: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
+  tradeBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tradeDot: { width: 5, height: 5, borderRadius: 3 },
+  tradeLabel: { fontSize: 12, fontWeight: "600" },
+  rateBox: { alignItems: "flex-end" },
+  rateAmount: { fontSize: 20, fontWeight: "700", color: "#0F172A" },
+  rateLabel: { fontSize: 11, color: "#94A3B8" },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#D1FAE5",
+    borderColor: "#E2E8F0",
     overflow: "hidden",
     marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   infoRow: {
     flexDirection: "row",
@@ -178,15 +240,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  infoLabel: { fontSize: 14, color: "#475569" },
+  infoLabel: { fontSize: 14, color: "#64748B" },
   infoValue: { fontSize: 14, fontWeight: "600", color: "#0F172A", maxWidth: "60%", textAlign: "right" },
-  divider: { height: 1, backgroundColor: "#F0FDF4" },
-  editButton: { borderRadius: 10, borderColor: "#D1FAE5", marginBottom: 8 },
+  divider: { height: 1, backgroundColor: "#F1F5F9" },
+  editButton: {
+    borderRadius: 10,
+    borderColor: "#E2E8F0",
+    marginBottom: 8,
+  },
   buttonContent: { height: 46 },
-  emptyContainer: { alignItems: "center", paddingVertical: 40, gap: 12 },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, color: "#475569" },
-  setupButton: { borderRadius: 10, marginTop: 4 },
-  signOutButton: { marginTop: 16, marginBottom: 8 },
-  signOutLabel: { color: "#DC2626", fontSize: 14 },
+  emptyContainer: { alignItems: "center", paddingVertical: 48, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: "#0F172A" },
+  emptySubtitle: { fontSize: 14, color: "#64748B", textAlign: "center" },
+  setupButton: { borderRadius: 10, marginTop: 8 },
+  signOutRow: { alignItems: "center", marginTop: 8, marginBottom: 40 },
+  signOutLabel: { color: "#94A3B8", fontSize: 14 },
 });

@@ -12,19 +12,20 @@ export default function CustomerTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#065F46",
+        tabBarActiveTintColor: "#059669",
         tabBarInactiveTintColor: "#94A3B8",
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
-          borderTopColor: "#D1FAE5",
+          borderTopColor: "#E2E8F0",
           borderTopWidth: 1,
-          paddingBottom: 4,
-          height: 60,
+          height: 80,
+          paddingBottom: 16,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "600",
-          marginBottom: 4,
+          marginTop: 2,
         },
       }}
     >
@@ -32,28 +33,28 @@ export default function CustomerTabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <TabIcon name="home-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="home-outline" color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: "Bookings",
-          tabBarIcon: ({ color, size }) => <TabIcon name="calendar-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="calendar-outline" color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
           title: "Activity",
-          tabBarIcon: ({ color, size }) => <TabIcon name="clock-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="lightning-bolt-outline" color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => <TabIcon name="account-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="account-circle-outline" color={color} size={22} />,
         }}
       />
     </Tabs>

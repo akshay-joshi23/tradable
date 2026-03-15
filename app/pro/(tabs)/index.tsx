@@ -8,39 +8,44 @@ import { RoleGuard } from "../../../components/RoleGuard";
 import { Screen } from "../../../components/Screen";
 import { listProCalls, ProCall } from "../../../lib/api";
 
-const TRADE_EMOJI: Record<string, string> = {
-  Plumbing: "🚿",
-  Electrical: "⚡",
-  HVAC: "❄️",
-  Appliance: "🔌",
-  Handyman: "🔧",
+const TRADE_COLOR: Record<string, string> = {
+  Plumbing: "#0EA5E9",
+  Electrical: "#F59E0B",
+  HVAC: "#6366F1",
+  Appliance: "#EC4899",
+  Handyman: "#059669",
 };
 
 function CallRow({ call, onPress }: { call: ProCall; onPress: () => void }) {
-  const emoji = TRADE_EMOJI[call.trade] ?? "🔧";
+  const color = TRADE_COLOR[call.trade] ?? "#059669";
   const date = new Date(call.created_at).toLocaleDateString([], {
     month: "short",
     day: "numeric",
   });
+  const hasOutcome = Boolean(call.outcome);
 
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.rowLeft}>
-        <View style={styles.tradeTag}>
-          <Text style={styles.emoji}>{emoji}</Text>
-          <Text style={styles.trade}>{call.trade}</Text>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.6}>
+      <View style={[styles.tradeAccent, { backgroundColor: color }]} />
+      <View style={styles.rowContent}>
+        <View style={styles.rowTop}>
+          <Text style={styles.tradeName}>{call.trade}</Text>
+          <Text style={styles.date}>{date}</Text>
         </View>
         <Text style={styles.description} numberOfLines={1}>{call.description}</Text>
-        {call.outcome ? (
-          <Text style={styles.diagnosis} numberOfLines={1}>{call.outcome.diagnosis}</Text>
-        ) : (
-          <Text style={styles.noOutcome}>No outcome recorded</Text>
-        )}
+        <View style={styles.rowBottom}>
+          {hasOutcome ? (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>Completed</Text>
+            </View>
+          ) : (
+            <View style={[styles.statusBadge, styles.statusBadgePending]}>
+              <Text style={[styles.statusText, styles.statusTextPending]}>No summary</Text>
+            </View>
+          )}
+        </View>
       </View>
-      <View style={styles.rowRight}>
-        <Text style={styles.date}>{date}</Text>
-        <Text style={styles.chevron}>›</Text>
-      </View>
+      <Text style={styles.chevron}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -71,10 +76,10 @@ export default function HomeTab() {
         <Screen>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadCalls} tintColor="#065F46" />}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadCalls} tintColor="#059669" />}
           >
-            <Text style={styles.heading}>Home</Text>
-            <Text style={styles.subheading}>Your completed consultations</Text>
+            <Text style={styles.heading}>Consultations</Text>
+            <Text style={styles.subheading}>Your completed sessions</Text>
 
             {error ? (
               <View style={styles.errorBanner}>
@@ -84,17 +89,16 @@ export default function HomeTab() {
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#065F46" />
+                <ActivityIndicator color="#059669" size="small" />
               </View>
             ) : calls.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>📋</Text>
-                <Text style={styles.emptyTitle}>No calls yet</Text>
-                <Text style={styles.emptySubtitle}>Completed consultations will appear here.</Text>
+                <Text style={styles.emptyTitle}>No consultations yet</Text>
+                <Text style={styles.emptySubtitle}>Completed jobs will appear here.</Text>
               </View>
             ) : (
               <View style={styles.list}>
-                {calls.map((call) => (
+                {calls.map((call, index) => (
                   <CallRow
                     key={call.id}
                     call={call}
@@ -111,38 +115,117 @@ export default function HomeTab() {
 }
 
 const styles = StyleSheet.create({
-  heading: { fontSize: 26, fontWeight: "700", color: "#064E3B", letterSpacing: -0.5, marginTop: 8 },
-  subheading: { fontSize: 14, color: "#475569", marginTop: 2, marginBottom: 20 },
-  errorBanner: { backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16 },
+  heading: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  subheading: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+  },
   errorText: { color: "#DC2626", fontSize: 14 },
   loadingContainer: { alignItems: "center", paddingVertical: 60 },
-  emptyContainer: { alignItems: "center", paddingVertical: 60 },
-  emptyEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#0F172A" },
-  emptySubtitle: { fontSize: 14, color: "#475569", marginTop: 4, textAlign: "center", paddingHorizontal: 32 },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 64,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0F172A",
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#94A3B8",
+    marginTop: 6,
+    textAlign: "center",
+  },
   list: {
-    borderRadius: 16,
     backgroundColor: "#FFFFFF",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#D1FAE5",
+    borderColor: "#E2E8F0",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+    marginBottom: 32,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0FDF4",
+    borderBottomColor: "#F1F5F9",
   },
-  rowLeft: { flex: 1, gap: 4 },
-  rowRight: { alignItems: "flex-end", gap: 6, marginLeft: 12 },
-  tradeTag: { flexDirection: "row", alignItems: "center", gap: 5 },
-  emoji: { fontSize: 13 },
-  trade: { fontSize: 13, fontWeight: "600", color: "#065F46" },
-  description: { fontSize: 14, color: "#334155" },
-  diagnosis: { fontSize: 12, color: "#475569" },
-  noOutcome: { fontSize: 12, color: "#94A3B8", fontStyle: "italic" },
-  date: { fontSize: 12, color: "#94A3B8" },
-  chevron: { fontSize: 20, color: "#A7F3D0", lineHeight: 22 },
+  tradeAccent: {
+    width: 3,
+    alignSelf: "stretch",
+  },
+  rowContent: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  rowTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tradeName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  date: {
+    fontSize: 12,
+    color: "#94A3B8",
+  },
+  description: {
+    fontSize: 14,
+    color: "#475569",
+  },
+  rowBottom: {
+    flexDirection: "row",
+    marginTop: 2,
+  },
+  statusBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  statusBadgePending: {
+    backgroundColor: "#F8FAFC",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#059669",
+  },
+  statusTextPending: {
+    color: "#94A3B8",
+  },
+  chevron: {
+    fontSize: 20,
+    color: "#CBD5E1",
+    paddingRight: 14,
+  },
 });
