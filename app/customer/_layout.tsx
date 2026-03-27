@@ -9,6 +9,8 @@ export default function CustomerLayout() {
       <Stack.Screen name="book/[requestId]" options={{ title: "Book Appointment" }} />
       <Stack.Screen name="call-detail/[id]" options={{ title: "Call Details" }} />
       <Stack.Screen name="pro/[id]" options={{ title: "Pro Profile" }} />
+      <Stack.Screen name="call-complete/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="pros" options={{ headerShown: false }} />
     </Stack>
   );
 }

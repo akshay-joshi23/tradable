@@ -1,54 +1,137 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Button, Text } from "react-native-paper";
+import { useRouter, useFocusEffect } from "expo-router";
+import { Linking } from "react-native";
+import { useCallback, useState } from "react";
+import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 
 import { AuthGate } from "../../../components/AuthGate";
 import { RoleGuard } from "../../../components/RoleGuard";
-import { Screen } from "../../../components/Screen";
-import { getProProfile } from "../../../lib/api";
+import {
+  getProProfile,
+  getStripeConnectOnboardingUrl,
+  getStripeConnectStatus,
+  listProCalls,
+  saveProProfile,
+  uploadAvatar,
+  updateProPhotoUrl,
+} from "../../../lib/api";
 import { useRole } from "../../../lib/role";
+import { useAuth } from "../../../lib/auth";
 import { supabase } from "../../../lib/supabase";
 import { ProProfile } from "../../../lib/types";
 
-const TRADE_EMOJI: Record<string, string> = {
-  Plumbing: "🚿",
-  Electrical: "⚡",
-  HVAC: "❄️",
-  Appliance: "🔌",
-  Handyman: "🔧",
+type MenuRow = {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  sub?: string;
+  onPress: () => void;
 };
 
-const TRADE_COLOR: Record<string, string> = {
-  Plumbing: "#0EA5E9",
-  Electrical: "#F59E0B",
-  HVAC: "#6366F1",
-  Appliance: "#EC4899",
-  Handyman: "#059669",
-};
-
-function InfoRow({ label, value }: { label: string; value: string }) {
+function MenuSection({ title, rows }: { title: string; rows: MenuRow[] }) {
   return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+    <View style={styles.menuSection}>
+      <Text style={styles.sectionLabel}>{title}</Text>
+      <View style={styles.menuCard}>
+        {rows.map((row, idx) => (
+          <TouchableOpacity
+            key={idx}
+            style={[styles.menuRow, idx < rows.length - 1 && styles.menuRowBorder]}
+            onPress={row.onPress}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name={row.icon} size={16} color="#9A9A9A" style={{ marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowLabel}>{row.label}</Text>
+              {row.sub && <Text style={styles.menuRowSub}>{row.sub}</Text>}
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={16} color="#9A9A9A" />
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }
 
 export default function ProfileTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { clearRole } = useRole();
+  const { session } = useAuth();
   const [profile, setProfile] = useState<ProProfile | null>(null);
+  const [callCount, setCallCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  useEffect(() => {
-    getProProfile()
-      .then(setProfile)
-      .catch(() => setProfile(null))
+  const loadProfile = useCallback(() => {
+    setLoading(true);
+    Promise.all([getProProfile(), listProCalls()])
+      .then(([p, cs]) => {
+        setProfile(p);
+        setCallCount(cs.length);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useFocusEffect(loadProfile);
+
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadAvatar(result.assets[0].uri, userId);
+      await updateProPhotoUrl(url);
+      setProfile((prev) => prev ? { ...prev, photo_url: url } : prev);
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleConnectStripe = async () => {
+    try {
+      const url = await getStripeConnectOnboardingUrl();
+      await Linking.openURL(url);
+    } catch {
+      // handled silently; user stays on screen
+    }
+  };
+
+  const handleDevFill = async () => {
+    try {
+      await saveProProfile({
+        fullName: "Akshay Joshi",
+        displayName: "Test Pro",
+        email: "test-pro@tradable.dev",
+        phone: "+15550000002",
+        trade: "Plumbing",
+        calUsername: "akshay-joshi-g4ybmy",
+        consultationPriceCents: 7500,
+        yearsOfExperience: 10,
+        certifications: "Master Plumber · Licensed & Insured",
+        serviceRadiusMiles: 25,
+      });
+      loadProfile();
+    } catch {}
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -62,197 +145,353 @@ export default function ProfileTab() {
     }
   };
 
-  const emoji = profile ? (TRADE_EMOJI[profile.trade] ?? "🔧") : "";
-  const tradeColor = profile ? (TRADE_COLOR[profile.trade] ?? "#059669") : "#059669";
-  const priceFormatted = profile
-    ? `$${(profile.consultation_price_cents / 100).toFixed(0)}`
-    : "";
-  const displayName = profile ? (profile.display_name ?? profile.full_name ?? "Pro") : "";
+  const displayName = profile ? (profile.display_name ?? profile.full_name ?? "Pro") : "Pro";
+  const initials = displayName.slice(0, 2).toUpperCase();
+  const yearsExp = profile?.years_of_experience;
+
+  const consultationPriceLabel = profile?.consultation_price_cents
+    ? `$${Math.round(profile.consultation_price_cents / 100)} / consultation`
+    : undefined;
+
+  const profileRows: MenuRow[] = [
+    { icon: "pencil-outline", label: "Edit profile", onPress: () => router.push("/pro/edit/profile") },
+    { icon: "certificate-outline", label: "Certifications", sub: profile?.certifications ?? undefined, onPress: () => router.push("/pro/edit/certifications") },
+    { icon: "map-marker-radius-outline", label: "Service area", sub: profile?.service_radius_miles ? `${profile.service_radius_miles} mi radius` : undefined, onPress: () => router.push("/pro/edit/service-area") },
+    { icon: "currency-usd", label: "Consultation fee", sub: consultationPriceLabel, onPress: () => router.push("/pro/edit/fee") },
+  ];
+
+  const paymentRows: MenuRow[] = [
+    {
+      icon: "bank-outline",
+      label: "Bank account",
+      sub: profile?.stripe_onboarding_complete ? "Connected" : "Not connected",
+      onPress: handleConnectStripe,
+    },
+    {
+      icon: "file-document-outline",
+      label: "Tax documents",
+      onPress: () => {},
+    },
+    {
+      icon: "clock-outline",
+      label: "Payout schedule",
+      onPress: () => {},
+    },
+  ];
+
+  const supportRows: MenuRow[] = [
+    { icon: "help-circle-outline", label: "Help center", onPress: () => {} },
+    { icon: "file-check-outline", label: "Terms", onPress: () => {} },
+    { icon: "shield-outline", label: "Privacy", onPress: () => {} },
+  ];
 
   return (
     <AuthGate>
       <RoleGuard requiredRole="pro">
-        <Screen>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.heading}>Profile</Text>
-
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#059669" size="small" />
-              </View>
-            ) : profile ? (
-              <>
-                <View style={styles.profileHeader}>
-                  <View style={[styles.avatar, { backgroundColor: tradeColor + "18" }]}>
-                    <Text style={styles.avatarEmoji}>{emoji}</Text>
-                  </View>
-                  <View style={styles.profileInfo}>
-                    <Text style={styles.name}>{displayName}</Text>
-                    <View style={styles.tradeBadge}>
-                      <View style={[styles.tradeDot, { backgroundColor: tradeColor }]} />
-                      <Text style={[styles.tradeLabel, { color: tradeColor }]}>{profile.trade}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.rateBox}>
-                    <Text style={styles.rateAmount}>{priceFormatted}</Text>
-                    <Text style={styles.rateLabel}>per call</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.sectionLabel}>Account Details</Text>
-                <View style={styles.card}>
-                  <InfoRow label="Email" value={profile.email ?? "—"} />
-                  <View style={styles.divider} />
-                  <InfoRow label="Phone" value={profile.phone ?? "—"} />
-                  {profile.years_of_experience != null && (
-                    <>
-                      <View style={styles.divider} />
-                      <InfoRow label="Experience" value={`${profile.years_of_experience} years`} />
-                    </>
-                  )}
-                  {profile.cal_username ? (
-                    <>
-                      <View style={styles.divider} />
-                      <InfoRow label="Cal.com" value={`@${profile.cal_username}`} />
-                    </>
-                  ) : null}
-                  {profile.service_radius_miles != null && (
-                    <>
-                      <View style={styles.divider} />
-                      <InfoRow label="Service radius" value={`${profile.service_radius_miles} mi`} />
-                    </>
-                  )}
-                </View>
-
-                <Button
-                  mode="outlined"
-                  onPress={() => router.push("/pro/setup")}
-                  style={styles.editButton}
-                  contentStyle={styles.buttonContent}
-                  icon="pencil-outline"
-                  textColor="#059669"
-                >
-                  Edit Profile
-                </Button>
-              </>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>Profile not set up</Text>
-                <Text style={styles.emptySubtitle}>Complete your profile to start taking jobs.</Text>
-                <Button
-                  mode="contained"
-                  onPress={() => router.push("/pro/setup")}
-                  style={styles.setupButton}
-                  contentStyle={styles.buttonContent}
-                  buttonColor="#059669"
-                >
-                  Complete Setup
-                </Button>
-              </View>
-            )}
-
-            <View style={styles.signOutRow}>
-              <Button
-                mode="text"
-                onPress={handleSignOut}
-                loading={signingOut}
-                labelStyle={styles.signOutLabel}
-                icon="logout"
-              >
-                Sign Out
-              </Button>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color="#1A4230" />
             </View>
-          </ScrollView>
-        </Screen>
+          ) : (
+            <>
+              {/* Profile Header */}
+              <View style={styles.profileHeader}>
+                <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8} style={styles.avatarWrapper}>
+                  {profile?.photo_url ? (
+                    <Image source={{ uri: profile.photo_url }} style={styles.avatarImage} />
+                  ) : (
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{initials}</Text>
+                    </View>
+                  )}
+                  {uploadingPhoto ? (
+                    <View style={styles.avatarOverlay}>
+                      <ActivityIndicator size="small" color="#FFF" />
+                    </View>
+                  ) : (
+                    <View style={styles.avatarEditBadge}>
+                      <MaterialCommunityIcons name="camera" size={12} color="#FFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <View style={styles.profileInfo}>
+                  <Text style={styles.displayName}>{displayName}</Text>
+                  <Text style={styles.trade}>{profile?.trade ?? ""}</Text>
+                  <Text style={styles.email}>{profile?.email ?? ""}</Text>
+                </View>
+              </View>
+
+              {/* Dev autofill */}
+              <TouchableOpacity style={styles.devBanner} onPress={handleDevFill} activeOpacity={0.8}>
+                <Text style={styles.devBannerText}>⚡ Autofill profile with test data</Text>
+              </TouchableOpacity>
+
+              {/* Stats Row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>4.8</Text>
+                  <Text style={styles.statLabel}>RATING</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{callCount}</Text>
+                  <Text style={styles.statLabel}>JOBS</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{yearsExp != null ? `${yearsExp}yr` : "—"}</Text>
+                  <Text style={styles.statLabel}>EXPERIENCE</Text>
+                </View>
+              </View>
+
+              {/* Pro Status Card */}
+              <View style={styles.statusCard}>
+                <Text style={styles.sectionLabel}>PRO STATUS</Text>
+                <Text style={styles.statusTitle}>
+                  {profile?.stripe_onboarding_complete ? "Active & Verified" : "Setup incomplete"}
+                </Text>
+                <Text style={styles.statusSub}>
+                  {profile?.stripe_onboarding_complete
+                    ? "License verified · Background checked · Insured"
+                    : "Complete bank setup to start receiving payouts"}
+                </Text>
+              </View>
+
+              <MenuSection title="MY PROFILE" rows={profileRows} />
+              <MenuSection title="PAYMENTS" rows={paymentRows} />
+              <MenuSection title="SUPPORT & LEGAL" rows={supportRows} />
+
+              {/* Log Out */}
+              <TouchableOpacity
+                style={styles.logoutCard}
+                onPress={handleSignOut}
+                disabled={signingOut}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.logoutText}>{signingOut ? "Signing out…" : "Log out"}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.version}>Tradable v1.0</Text>
+            </>
+          )}
+        </ScrollView>
       </RoleGuard>
     </AuthGate>
   );
 }
 
+const CARD_SHADOW = {
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.06,
+  shadowRadius: 3,
+  elevation: 2,
+};
+
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#0F172A",
-    letterSpacing: -0.5,
-    marginTop: 4,
-    marginBottom: 24,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  loadingContainer: { alignItems: "center", paddingVertical: 60 },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+  },
+  centered: {
+    alignItems: "center",
+    paddingVertical: 80,
+  },
   profileHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-    gap: 12,
+    gap: 16,
+    paddingBottom: 24,
+    marginBottom: 4,
   },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
+  avatarWrapper: {
+    width: 56,
+    height: 56,
     flexShrink: 0,
   },
-  avatarEmoji: { fontSize: 24 },
-  profileInfo: { flex: 1, gap: 4 },
-  name: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
-  tradeBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
-  tradeDot: { width: 5, height: 5, borderRadius: 3 },
-  tradeLabel: { fontSize: 12, fontWeight: "600" },
-  rateBox: { alignItems: "flex-end" },
-  rateAmount: { fontSize: 20, fontWeight: "700", color: "#0F172A" },
-  rateLabel: { fontSize: 11, color: "#94A3B8" },
-  sectionLabel: {
-    fontSize: 11,
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1A4230",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarOverlay: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: 28,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#1A4230",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#F4F2EE",
+  },
+  avatarText: {
+    fontSize: 20,
     fontWeight: "700",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 10,
+    color: "#FFFFFF",
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    overflow: "hidden",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+  profileInfo: {
+    flex: 1,
+    gap: 2,
   },
-  infoRow: {
+  displayName: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.44,
+    color: "#111111",
+  },
+  trade: {
+    fontSize: 13,
+    fontWeight: "400",
+    color: "#5A5A5A",
+  },
+  email: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#9A9A9A",
+  },
+  statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    backgroundColor: "#F9F8F6",
+    borderRadius: 14,
+    marginBottom: 24,
+    overflow: "hidden",
+  },
+  statCell: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.66,
+    color: "#111111",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+    color: "#9A9A9A",
+    textTransform: "uppercase",
+  },
+  statusCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 24,
+    gap: 4,
+    ...CARD_SHADOW,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+    color: "#9A9A9A",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1A4230",
+  },
+  statusSub: {
+    fontSize: 12,
+    color: "#9A9A9A",
+  },
+  menuSection: {
+    marginBottom: 24,
+  },
+  menuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    overflow: "hidden",
+    ...CARD_SHADOW,
+  },
+  menuRow: {
+    flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  infoLabel: { fontSize: 14, color: "#64748B" },
-  infoValue: { fontSize: 14, fontWeight: "600", color: "#0F172A", maxWidth: "60%", textAlign: "right" },
-  divider: { height: 1, backgroundColor: "#F1F5F9" },
-  editButton: {
-    borderRadius: 10,
-    borderColor: "#E2E8F0",
-    marginBottom: 8,
+  menuRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.08)",
   },
-  buttonContent: { height: 46 },
-  emptyContainer: { alignItems: "center", paddingVertical: 48, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: "600", color: "#0F172A" },
-  emptySubtitle: { fontSize: 14, color: "#64748B", textAlign: "center" },
-  setupButton: { borderRadius: 10, marginTop: 8 },
-  signOutRow: { alignItems: "center", marginTop: 8, marginBottom: 40 },
-  signOutLabel: { color: "#94A3B8", fontSize: 14 },
+  menuRowLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#111111",
+  },
+  menuRowSub: {
+    fontSize: 12,
+    color: "#9A9A9A",
+    marginTop: 1,
+  },
+  logoutCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 12,
+    ...CARD_SHADOW,
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#CC2C2C",
+  },
+  version: {
+    textAlign: "center",
+    fontSize: 10,
+    color: "#9A9A9A",
+    paddingBottom: 8,
+  },
+  devBanner: {
+    backgroundColor: "#FFF9C4",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#F0E060",
+  },
+  devBannerText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#7A6500",
+  },
 });

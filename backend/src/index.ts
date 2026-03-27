@@ -333,7 +333,7 @@ const proProfileSchema = z.object({
   yearsOfExperience: z.number().int().min(0).max(60).optional(),
   businessNumber: z.string().max(100).optional(),
   certifications: z.string().max(500).optional(),
-  calUsername: z.string().min(1, "Cal.com username is required.").max(100),
+  calUsername: z.string().min(1).max(100).optional(),
   consultationPriceCents: z
     .number()
     .int("Price must be a whole number of cents.")
@@ -463,6 +463,17 @@ app.post("/api/requests/:requestId/match", requireAuth, requireUserRole(["pro"])
   const { requestId } = req.params;
   const userId = (req as AuthedRequest).userId;
 
+  // Ensure the pro has a completed profile before they can accept jobs
+  const { data: profile } = await supabase
+    .from("pro_profiles")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!profile) {
+    return fail(res, "Complete your pro profile before accepting jobs.", 403);
+  }
+
   const { data, error } = await supabase
     .from("requests")
     .update({ status: "matched", claimed_by: userId })
@@ -554,21 +565,22 @@ app.post("/api/pro/profile", requireAuth, requireUserRole(["pro"]), async (req, 
   } = parsed.data;
   const userId = (req as AuthedRequest).userId;
 
-  // Resolve and cache the Cal.com event type ID so booking lookups don't
-  // need a live API call every time. Only update if we successfully fetch it.
+  // Resolve and cache the Cal.com event type ID when a username is provided.
   let calEventTypeId: number | null = null;
-  try {
-    const calRes = await fetch(
-      `${CAL_API_BASE}/event-types?username=${encodeURIComponent(calUsername)}`,
-      { headers: CAL_HEADERS }
-    );
-    if (calRes.ok) {
-      const calData = await calRes.json();
-      const eventTypes: { id: number }[] = calData?.data ?? [];
-      if (eventTypes.length > 0) calEventTypeId = eventTypes[0].id;
+  if (calUsername) {
+    try {
+      const calRes = await fetch(
+        `${CAL_API_BASE}/event-types?username=${encodeURIComponent(calUsername)}`,
+        { headers: CAL_HEADERS }
+      );
+      if (calRes.ok) {
+        const calData = await calRes.json();
+        const eventTypes: { id: number }[] = calData?.data ?? [];
+        if (eventTypes.length > 0) calEventTypeId = eventTypes[0].id;
+      }
+    } catch {
+      console.warn("[POST /api/pro/profile] Cal.com event type fetch failed — will use live lookup as fallback.");
     }
-  } catch {
-    console.warn("[POST /api/pro/profile] Cal.com event type fetch failed — will use live lookup as fallback.");
   }
 
   const { data, error } = await supabase
@@ -585,7 +597,7 @@ app.post("/api/pro/profile", requireAuth, requireUserRole(["pro"]), async (req, 
         years_of_experience: yearsOfExperience ?? null,
         business_number: businessNumber ?? null,
         certifications: certifications ?? null,
-        cal_username: calUsername,
+        ...(calUsername !== undefined ? { cal_username: calUsername } : {}),
         consultation_price_cents: consultationPriceCents,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
@@ -603,6 +615,44 @@ app.post("/api/pro/profile", requireAuth, requireUserRole(["pro"]), async (req, 
   }
 
   return ok(res, data as ProProfileRecord, 201);
+});
+
+app.patch("/api/pro/profile/fee", requireAuth, requireUserRole(["pro"]), async (req, res) => {
+  const parsed = z.object({
+    consultationPriceCents: z.number().int().min(100, "Minimum price is $1.").max(100000, "Maximum price is $1,000."),
+  }).safeParse(req.body);
+  if (!parsed.success) return fail(res, zodMessage(parsed.error));
+
+  const userId = (req as AuthedRequest).userId;
+  const { error } = await supabase
+    .from("pro_profiles")
+    .update({ consultation_price_cents: parsed.data.consultationPriceCents })
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[PATCH /api/pro/profile/fee]", error.message);
+    return fail(res, "Failed to update fee. Please try again.", 500);
+  }
+  return ok(res, { consultationPriceCents: parsed.data.consultationPriceCents });
+});
+
+app.patch("/api/pro/profile/photo", requireAuth, requireUserRole(["pro"]), async (req, res) => {
+  const parsed = z.object({
+    photoUrl: z.string().url("Invalid photo URL."),
+  }).safeParse(req.body);
+  if (!parsed.success) return fail(res, zodMessage(parsed.error));
+
+  const userId = (req as AuthedRequest).userId;
+  const { error } = await supabase
+    .from("pro_profiles")
+    .update({ photo_url: parsed.data.photoUrl })
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[PATCH /api/pro/profile/photo]", error.message);
+    return fail(res, "Failed to update photo. Please try again.", 500);
+  }
+  return ok(res, { photoUrl: parsed.data.photoUrl });
 });
 
 // ─── Browse pros ──────────────────────────────────────────────────────────────
@@ -637,7 +687,6 @@ app.get("/api/customer/calls", requireAuth, requireUserRole(["customer"]), async
     .from("requests")
     .select("id, trade, description, status, created_at")
     .eq("customer_id", userId)
-    .eq("status", "completed")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -739,24 +788,33 @@ app.post("/api/stripe/payment-intent", requireAuth, requireUserRole(["customer"]
   if (request.payment_status === "paid") return fail(res, "This consultation has already been paid.", 409);
   if (!request.claimed_by) return fail(res, "No pro has been matched to this request.", 409);
 
-  // Look up the pro's price and Cal.com username
+  // Look up the pro's price, Cal.com username, and Stripe account
   const { data: profile, error: profileError } = await supabase
     .from("pro_profiles")
-    .select("consultation_price_cents, cal_username, full_name")
+    .select("consultation_price_cents, cal_username, full_name, stripe_account_id, stripe_onboarding_complete")
     .eq("user_id", request.claimed_by)
     .single();
 
   if (profileError || !profile) return fail(res, "Pro profile not found.", 404);
 
   const amount = profile.consultation_price_cents as number;
+  if (!amount || amount < 100) return fail(res, "This pro has not set a consultation price yet.", 409);
   const platformFee = Math.round(amount * PLATFORM_FEE_PERCENT);
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     amount,
     currency: "usd",
     metadata: { requestId, platformFeeCents: platformFee },
     description: `Tradable consultation with ${profile.full_name ?? "pro"}`,
-  });
+  };
+
+  // Route funds directly to pro's Stripe account if they've completed Connect onboarding
+  if (profile.stripe_account_id && profile.stripe_onboarding_complete) {
+    paymentIntentParams.application_fee_amount = platformFee;
+    paymentIntentParams.transfer_data = { destination: profile.stripe_account_id as string };
+  }
+
+  const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
   return ok(res, {
     clientSecret: paymentIntent.client_secret,
@@ -781,6 +839,105 @@ app.post("/api/stripe/confirm-payment", requireAuth, requireUserRole(["customer"
     .eq("id", requestId);
 
   return ok(res, { paid: true });
+});
+
+// ─── Stripe Connect routes ────────────────────────────────────────────────────
+
+app.post("/api/stripe/connect/onboard", requireAuth, requireUserRole(["pro"]), async (req, res) => {
+  if (!stripe) return fail(res, "Payments are not configured.", 503);
+
+  const userId = (req as AuthedRequest).userId;
+
+  const { data: profile, error: profileError } = await supabase
+    .from("pro_profiles")
+    .select("stripe_account_id, full_name, email")
+    .eq("user_id", userId)
+    .single();
+
+  if (profileError || !profile) return fail(res, "Complete your profile before connecting payments.", 404);
+
+  let stripeAccountId = (profile.stripe_account_id as string | null);
+
+  if (!stripeAccountId) {
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: "US",
+      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      ...(profile.email ? { email: profile.email as string } : {}),
+    });
+    stripeAccountId = account.id;
+    await supabase
+      .from("pro_profiles")
+      .update({ stripe_account_id: stripeAccountId })
+      .eq("user_id", userId);
+  }
+
+  const apiBase = process.env.API_BASE_URL ?? `http://localhost:3000`;
+  const accountLink = await stripe.accountLinks.create({
+    account: stripeAccountId,
+    refresh_url: `${apiBase}/stripe/connect/refresh?accountId=${stripeAccountId}`,
+    return_url: `${apiBase}/stripe/connect/return`,
+    type: "account_onboarding",
+  });
+
+  return ok(res, { url: accountLink.url });
+});
+
+app.get("/api/stripe/connect/status", requireAuth, requireUserRole(["pro"]), async (req, res) => {
+  if (!stripe) return ok(res, { connected: false });
+
+  const userId = (req as AuthedRequest).userId;
+
+  const { data: profile } = await supabase
+    .from("pro_profiles")
+    .select("stripe_account_id")
+    .eq("user_id", userId)
+    .single();
+
+  if (!profile?.stripe_account_id) return ok(res, { connected: false });
+
+  const account = await stripe.accounts.retrieve(profile.stripe_account_id as string);
+  const connected = account.charges_enabled && account.payouts_enabled;
+
+  if (connected) {
+    await supabase
+      .from("pro_profiles")
+      .update({ stripe_onboarding_complete: true })
+      .eq("user_id", userId);
+  }
+
+  return ok(res, {
+    connected,
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+  });
+});
+
+// Stripe Connect browser redirects (after onboarding completes / needs refresh)
+app.get("/stripe/connect/return", (_req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tradable</title>
+    <script>window.location.href = "tradable://pro";</script></head>
+    <body style="font-family:system-ui;text-align:center;padding:60px 20px">
+      <h2>You're all set!</h2><p>Return to the Tradable app to continue.</p>
+    </body></html>`);
+});
+
+app.get("/stripe/connect/refresh", async (req, res) => {
+  if (!stripe) return res.redirect("tradable://pro");
+  const { accountId } = req.query as { accountId?: string };
+  if (!accountId) return res.redirect("tradable://pro");
+  try {
+    const apiBase = process.env.API_BASE_URL ?? `http://localhost:3000`;
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${apiBase}/stripe/connect/refresh?accountId=${accountId}`,
+      return_url: `${apiBase}/stripe/connect/return`,
+      type: "account_onboarding",
+    });
+    res.redirect(accountLink.url);
+  } catch {
+    res.redirect("tradable://pro");
+  }
 });
 
 // ─── Cal.com routes ───────────────────────────────────────────────────────────
@@ -830,6 +987,29 @@ app.post("/api/cal/bookings", requireAuth, async (req, res) => {
 
   return ok(res, calData.data);
 });
+
+// ─── Request expiry job ───────────────────────────────────────────────────────
+
+const REQUEST_TTL_MINUTES = 10;
+
+async function expireStaleRequests() {
+  const cutoff = new Date(Date.now() - REQUEST_TTL_MINUTES * 60 * 1000).toISOString();
+  const { error, count } = await supabase
+    .from("requests")
+    .update({ status: "expired" })
+    .eq("status", "open")
+    .lt("created_at", cutoff);
+
+  if (error) {
+    console.error("[expiry job]", error.message);
+  } else if (count && count > 0) {
+    console.log(`[expiry job] Expired ${count} stale request(s).`);
+  }
+}
+
+// Run immediately on startup, then every 60 seconds
+expireStaleRequests();
+setInterval(expireStaleRequests, 60 * 1000);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 

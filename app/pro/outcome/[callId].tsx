@@ -1,15 +1,17 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { Button, HelperText, Switch, Text, TextInput } from "react-native-paper";
+import { ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
+import { Text } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AuthGate } from "../../../components/AuthGate";
-import { Screen } from "../../../components/Screen";
 import { RoleGuard } from "../../../components/RoleGuard";
 import { submitOutcome } from "../../../lib/api";
 
 export default function OutcomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { callId } = useLocalSearchParams<{ callId: string }>();
   const [diagnosis, setDiagnosis] = useState("");
   const [estimateMin, setEstimateMin] = useState("");
@@ -22,10 +24,10 @@ export default function OutcomeScreen() {
     setError(null);
     if (!callId) { setError("Missing call id."); return; }
     if (!diagnosis.trim()) { setError("Please add a diagnosis."); return; }
-    const minValue = Number(estimateMin);
-    const maxValue = Number(estimateMax);
+    const minValue = estimateMin ? Number(estimateMin) : 0;
+    const maxValue = estimateMax ? Number(estimateMax) : 0;
     if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
-      setError("Please provide estimate numbers.");
+      setError("Please provide valid estimate numbers.");
       return;
     }
     setSubmitting(true);
@@ -36,7 +38,7 @@ export default function OutcomeScreen() {
         estimateMax: maxValue,
         onsiteNeeded,
       });
-      router.replace("/pro/dashboard");
+      router.replace("/pro");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit outcome.");
     } finally {
@@ -44,150 +46,267 @@ export default function OutcomeScreen() {
     }
   };
 
+  const canSubmit = diagnosis.trim().length > 0;
+
   return (
     <AuthGate>
       <RoleGuard requiredRole="pro">
-        <Screen>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.heading}>Consultation Summary</Text>
-            <Text style={styles.subheading}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Back button */}
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.replace("/pro")}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={18} color="#1A4230" />
+              <Text style={styles.backBtnText}>Dashboard</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.title}>Consultation Summary</Text>
+            <Text style={styles.subtitle}>
               Share your findings so the customer can review and book next steps.
             </Text>
 
-            <Text style={styles.sectionLabel}>Diagnosis</Text>
-            <TextInput
-              mode="outlined"
-              placeholder="Describe what you found and what needs to be done..."
-              multiline
-              numberOfLines={4}
-              value={diagnosis}
-              onChangeText={setDiagnosis}
-              style={styles.textarea}
-            />
-
-            <Text style={styles.sectionLabel}>Estimate range</Text>
-            <View style={styles.estimateRow}>
+            {/* Diagnosis */}
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>Diagnosis</Text>
               <TextInput
-                mode="outlined"
-                label="Min ($)"
-                keyboardType="numeric"
-                value={estimateMin}
-                onChangeText={setEstimateMin}
-                style={styles.estimateInput}
-                left={<TextInput.Affix text="$" />}
-              />
-              <Text style={styles.estimateDash}>–</Text>
-              <TextInput
-                mode="outlined"
-                label="Max ($)"
-                keyboardType="numeric"
-                value={estimateMax}
-                onChangeText={setEstimateMax}
-                style={styles.estimateInput}
-                left={<TextInput.Affix text="$" />}
+                style={styles.textarea}
+                placeholder="Describe what you found and what needs to be done..."
+                placeholderTextColor="#9A9A9A"
+                multiline
+                numberOfLines={5}
+                value={diagnosis}
+                onChangeText={setDiagnosis}
+                textAlignVertical="top"
               />
             </View>
 
-            <View style={styles.onsiteRow}>
-              <View style={styles.onsiteText}>
-                <Text style={styles.onsiteTitle}>Onsite visit needed?</Text>
-                <Text style={styles.onsiteSubtitle}>
-                  Customer will be prompted to book if enabled.
-                </Text>
+            {/* Estimate */}
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>Estimate Range</Text>
+              <View style={styles.estimateRow}>
+                <View style={styles.estimateInputWrapper}>
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    style={styles.estimateInput}
+                    placeholder="Min"
+                    placeholderTextColor="#9A9A9A"
+                    keyboardType="numeric"
+                    value={estimateMin}
+                    onChangeText={setEstimateMin}
+                  />
+                </View>
+                <Text style={styles.estimateDash}>–</Text>
+                <View style={styles.estimateInputWrapper}>
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    style={styles.estimateInput}
+                    placeholder="Max"
+                    placeholderTextColor="#9A9A9A"
+                    keyboardType="numeric"
+                    value={estimateMax}
+                    onChangeText={setEstimateMax}
+                  />
+                </View>
               </View>
-              <Switch
-                value={onsiteNeeded}
-                onValueChange={setOnsiteNeeded}
-                color="#065F46"
-              />
             </View>
 
-            <HelperText type="error" visible={Boolean(error)}>{error}</HelperText>
+            {/* Onsite toggle */}
+            <View style={styles.card}>
+              <View style={styles.onsiteRow}>
+                <View style={styles.onsiteText}>
+                  <Text style={styles.onsiteTitle}>Onsite visit needed?</Text>
+                  <Text style={styles.onsiteSubtitle}>
+                    Customer will be prompted to book a follow-up.
+                  </Text>
+                </View>
+                <Switch
+                  value={onsiteNeeded}
+                  onValueChange={setOnsiteNeeded}
+                  trackColor={{ false: "#E5E7EB", true: "#1A4230" }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </View>
 
-            <Button
-              mode="contained"
-              loading={submitting}
+            {/* Error */}
+            {error && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={[styles.submitButton, (!canSubmit || submitting) && styles.submitButtonDisabled]}
               onPress={handleSubmit}
-              style={styles.submitButton}
-              contentStyle={styles.submitButtonContent}
+              disabled={!canSubmit || submitting}
+              activeOpacity={0.85}
             >
-              Submit summary
-            </Button>
+              <Text style={styles.submitButtonText}>
+                {submitting ? "Submitting…" : "Submit summary"}
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#064E3B",
-    letterSpacing: -0.5,
-    marginTop: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  subheading: {
-    fontSize: 15,
-    color: "#475569",
-    marginTop: 4,
-    marginBottom: 28,
-    lineHeight: 22,
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    paddingTop: 12,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.9,
+    color: "#111",
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#5A5A5A",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+    marginBottom: 12,
+    gap: 12,
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#059669",
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 8,
+    color: "#9A9A9A",
   },
   textarea: {
-    backgroundColor: "#FFFFFF",
-    marginBottom: 24,
+    backgroundColor: "#F9F8F6",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    padding: 12,
+    minHeight: 120,
+    fontSize: 14,
+    color: "#111",
+    lineHeight: 20,
   },
   estimateRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 24,
+  },
+  estimateInputWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F8F6",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    paddingHorizontal: 12,
+    height: 46,
+  },
+  currencySymbol: {
+    fontSize: 15,
+    color: "#5A5A5A",
+    marginRight: 4,
   },
   estimateInput: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    fontSize: 15,
+    color: "#111",
   },
   estimateDash: {
     fontSize: 18,
-    color: "#94A3B8",
+    color: "#9A9A9A",
     fontWeight: "300",
   },
   onsiteRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#D1FAE5",
   },
-  onsiteText: { flex: 1, marginRight: 12 },
+  onsiteText: {
+    flex: 1,
+    marginRight: 12,
+    gap: 2,
+  },
   onsiteTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#0F172A",
+    color: "#111",
   },
   onsiteSubtitle: {
+    fontSize: 12,
+    color: "#5A5A5A",
+    lineHeight: 17,
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#DC2626",
     fontSize: 13,
-    color: "#475569",
-    marginTop: 2,
   },
   submitButton: {
+    backgroundColor: "#1A4230",
+    borderRadius: 14,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
-    marginBottom: 32,
-    borderRadius: 12,
   },
-  submitButtonContent: { height: 50 },
+  submitButtonDisabled: {
+    opacity: 0.4,
+  },
+  submitButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });

@@ -1,25 +1,27 @@
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import { Button, HelperText, Text, TextInput } from "react-native-paper";
+import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
+import { Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthGate } from "../../components/AuthGate";
-import { Screen } from "../../components/Screen";
 import { RoleGuard } from "../../components/RoleGuard";
 import { createRequest } from "../../lib/api";
 
-const trades = [
-  { label: "Plumbing", emoji: "🚿" },
-  { label: "Electrical", emoji: "⚡" },
-  { label: "HVAC", emoji: "❄️" },
-  { label: "Appliance", emoji: "🔌" },
-  { label: "Handyman", emoji: "🔧" },
+const TRADES = [
+  { emoji: "⚡", label: "Electrical" },
+  { emoji: "🔧", label: "Plumbing" },
+  { emoji: "❄️", label: "HVAC" },
+  { emoji: "🔌", label: "Appliance" },
+  { emoji: "🪛", label: "Handyman" },
 ];
 
 export default function NewRequestScreen() {
   const router = useRouter();
-  const [trade, setTrade] = useState(trades[0].label);
+  const insets = useSafeAreaInsets();
+  const [trade, setTrade] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,10 +38,8 @@ export default function NewRequestScreen() {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!description.trim()) {
-      setError("Please add a short description.");
-      return;
-    }
+    if (!trade) { setError("Please select a trade."); return; }
+    if (!description.trim()) { setError("Please describe the issue."); return; }
     setSubmitting(true);
     try {
       const request = await createRequest(trade, description.trim(), location ?? undefined);
@@ -51,153 +51,249 @@ export default function NewRequestScreen() {
     }
   };
 
+  const canSubmit = !!trade && description.trim().length > 0;
+
   return (
     <AuthGate>
       <RoleGuard requiredRole="customer">
-        <Screen>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.heading}>New Request</Text>
-            <Text style={styles.subheading}>Tell us what you need help with.</Text>
-
-            <Text style={styles.sectionLabel}>Select a trade</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tradeScroll}>
-              {trades.map((t) => (
-                <TouchableOpacity
-                  key={t.label}
-                  style={[styles.tradeChip, trade === t.label && styles.tradeChipActive]}
-                  onPress={() => setTrade(t.label)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.tradeEmoji}>{t.emoji}</Text>
-                  <Text style={[styles.tradeLabel, trade === t.label && styles.tradeLabelActive]}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.sectionLabel}>Describe the issue</Text>
-            <TextInput
-              mode="outlined"
-              placeholder="e.g. My kitchen sink has been leaking for two days..."
-              multiline
-              numberOfLines={5}
-              value={description}
-              onChangeText={setDescription}
-              style={styles.textarea}
-            />
-
-            <View style={styles.locationRow}>
-              <Text style={styles.locationIcon}>{location ? "📍" : "📍"}</Text>
-              <Text style={styles.locationText}>
-                {location
-                  ? "Location captured — nearby pros will see your request."
-                  : "Location unavailable — all pros will see your request."}
-              </Text>
-            </View>
-
-            <HelperText type="error" visible={Boolean(error)}>{error}</HelperText>
-
-            <Button
-              mode="contained"
-              loading={submitting}
-              onPress={handleSubmit}
-              style={styles.submitButton}
-              contentStyle={styles.submitButtonContent}
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
             >
-              Find a Pro
-            </Button>
+              <MaterialCommunityIcons name="arrow-left" size={18} color="#1A4230" />
+              <Text style={styles.backBtnText}>Back</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.title}>New Request</Text>
+            <Text style={styles.subtitle}>Tell us what you need help with.</Text>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>What do you need help with?</Text>
+              <View style={styles.tradeGrid}>
+                {TRADES.map((t) => {
+                  const active = trade === t.label;
+                  return (
+                    <TouchableOpacity
+                      key={t.label}
+                      style={[styles.tradePill, active && styles.tradePillActive]}
+                      onPress={() => setTrade(t.label)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.tradeEmoji}>{t.emoji}</Text>
+                      <Text style={[styles.tradeLabel, active && styles.tradeLabelActive]}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.sectionLabel}>Describe your issue</Text>
+              <TextInput
+                style={styles.textarea}
+                placeholder="E.g., My kitchen sink is leaking and water won't drain..."
+                placeholderTextColor="#9A9A9A"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+
+              <View style={styles.locationRow}>
+                <View style={styles.locationIconBox}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={18} color="#1A4230" />
+                </View>
+                <Text style={styles.locationText}>
+                  {location
+                    ? "Location captured — nearby pros will see your request."
+                    : "Location unavailable — all pros will see your request."}
+                </Text>
+                <View style={[styles.locationDot, { backgroundColor: location ? "#1A4230" : "#D1D5DB" }]} />
+              </View>
+
+              {error && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={!canSubmit || submitting}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.submitButtonText}>
+                  {submitting ? "Creating request…" : "Find a Pro → Pay to start"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#064E3B",
-    letterSpacing: -0.5,
-    marginTop: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  subheading: {
-    fontSize: 15,
-    color: "#475569",
-    marginTop: 4,
-    marginBottom: 24,
+  scroll: {
+    flex: 1,
   },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#059669",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 10,
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    paddingTop: 12,
   },
-  tradeScroll: {
-    marginBottom: 24,
-  },
-  tradeChip: {
+  backBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 10,
-    borderWidth: 1.5,
-    borderColor: "#D1FAE5",
-    minWidth: 80,
-    shadowColor: "#064E3B",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.9,
+    color: "#111",
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#5A5A5A",
+    marginBottom: 20,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
+    gap: 16,
   },
-  tradeChipActive: {
-    backgroundColor: "#D1FAE5",
-    borderColor: "#065F46",
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "#9A9A9A",
+  },
+  tradeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tradePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F9F8F6",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  tradePillActive: {
+    backgroundColor: "#1A4230",
+    borderColor: "#1A4230",
   },
   tradeEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
+    fontSize: 14,
   },
   tradeLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#5A5A5A",
   },
   tradeLabelActive: {
-    color: "#065F46",
+    color: "#FFF",
   },
   textarea: {
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
+    backgroundColor: "#F9F8F6",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    padding: 14,
+    minHeight: 110,
+    fontSize: 14,
+    color: "#111",
+    lineHeight: 20,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "#ECFDF5",
+    gap: 10,
+    backgroundColor: "#EDF2EF",
     borderRadius: 10,
     padding: 12,
-    marginBottom: 8,
   },
-  locationIcon: {
-    fontSize: 16,
+  locationIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   locationText: {
-    fontSize: 13,
-    color: "#065F46",
     flex: 1,
+    fontSize: 12,
+    color: "#1A4230",
+    lineHeight: 17,
+  },
+  locationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 10,
+    padding: 12,
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 13,
   },
   submitButton: {
-    marginTop: 8,
-    marginBottom: 32,
-    borderRadius: 12,
+    backgroundColor: "#1A4230",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
   },
-  submitButtonContent: {
-    height: 50,
+  submitButtonDisabled: {
+    opacity: 0.4,
+  },
+  submitButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

@@ -1,25 +1,18 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Button, Text } from "react-native-paper";
+import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthGate } from "../../../components/AuthGate";
 import { RoleGuard } from "../../../components/RoleGuard";
-import { Screen } from "../../../components/Screen";
 import { listCustomerCalls, CustomerCall } from "../../../lib/api";
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
-    </View>
-  );
-}
 
 export default function CustomerCallDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [call, setCall] = useState<CustomerCall | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,21 +46,24 @@ export default function CustomerCallDetailScreen() {
   return (
     <AuthGate>
       <RoleGuard requiredRole="customer">
-        <Screen>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Button
-              icon="arrow-left"
-              mode="text"
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              style={styles.backBtn}
               onPress={() => router.back()}
-              style={styles.backButton}
-              labelStyle={styles.backLabel}
+              activeOpacity={0.7}
             >
-              Bookings
-            </Button>
+              <MaterialCommunityIcons name="arrow-left" size={18} color="#1A4230" />
+              <Text style={styles.backBtnText}>Bookings</Text>
+            </TouchableOpacity>
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#065F46" />
+                <Text style={styles.loadingText}>Loading…</Text>
               </View>
             ) : error ? (
               <View style={styles.errorBanner}>
@@ -75,78 +71,160 @@ export default function CustomerCallDetailScreen() {
               </View>
             ) : call ? (
               <>
-                <View style={styles.header}>
-                  <Text style={styles.trade}>{call.trade}</Text>
-                  <Text style={styles.date}>{formattedDate}</Text>
-                </View>
+                <Text style={styles.title}>{call.trade}</Text>
+                <Text style={styles.date}>{formattedDate}</Text>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Your Issue</Text>
+                <View style={styles.card}>
+                  <Text style={styles.sectionLabel}>Your Issue</Text>
                   <Text style={styles.bodyText}>{call.description}</Text>
                 </View>
 
                 {call.outcome ? (
                   <>
-                    <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>Pro's Diagnosis</Text>
+                    <View style={styles.card}>
+                      <Text style={styles.sectionLabel}>Pro's Diagnosis</Text>
                       <Text style={styles.bodyText}>{call.outcome.diagnosis}</Text>
                     </View>
 
-                    <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>Summary</Text>
-                      <View style={styles.summaryCard}>
-                        <DetailRow label="Estimate" value={estimateText} />
-                        <View style={styles.divider} />
-                        <DetailRow
-                          label="Onsite visit needed"
-                          value={call.outcome.onsiteNeeded ? "Yes" : "No"}
-                        />
+                    <View style={styles.card}>
+                      <Text style={styles.sectionLabel}>Summary</Text>
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Estimate</Text>
+                        <Text style={styles.summaryValue}>{estimateText}</Text>
+                      </View>
+                      <View style={styles.divider} />
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Onsite visit needed</Text>
+                        <Text style={styles.summaryValue}>
+                          {call.outcome.onsiteNeeded ? "Yes" : "No"}
+                        </Text>
                       </View>
                     </View>
                   </>
                 ) : (
-                  <View style={styles.noOutcomeBanner}>
-                    <Text style={styles.noOutcomeText}>No diagnosis has been recorded yet.</Text>
+                  <View style={styles.emptyBanner}>
+                    <Text style={styles.emptyText}>No diagnosis has been recorded yet.</Text>
                   </View>
                 )}
               </>
             ) : null}
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  backButton: { alignSelf: "flex-start", marginLeft: -8, marginBottom: 8 },
-  backLabel: { color: "#065F46", fontSize: 14 },
-  loadingContainer: { alignItems: "center", paddingVertical: 60 },
-  errorBanner: { backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14 },
-  errorText: { color: "#DC2626", fontSize: 14 },
-  header: { marginBottom: 24 },
-  trade: { fontSize: 24, fontWeight: "700", color: "#064E3B", letterSpacing: -0.5 },
-  date: { fontSize: 13, color: "#475569", marginTop: 4 },
-  section: { marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 11, fontWeight: "700", color: "#059669",
-    letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  bodyText: { fontSize: 15, color: "#334155", lineHeight: 23 },
-  summaryCard: {
-    backgroundColor: "#FFFFFF", borderRadius: 14,
-    borderWidth: 1, borderColor: "#D1FAE5", overflow: "hidden",
+  scroll: {
+    flex: 1,
   },
-  detailRow: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", paddingHorizontal: 16, paddingVertical: 14,
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    paddingTop: 12,
   },
-  label: { fontSize: 14, color: "#475569" },
-  value: { fontSize: 14, fontWeight: "600", color: "#0F172A" },
-  divider: { height: 1, backgroundColor: "#F0FDF4" },
-  noOutcomeBanner: {
-    backgroundColor: "#ECFDF5", borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: "#D1FAE5",
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
   },
-  noOutcomeText: { fontSize: 14, color: "#94A3B8", textAlign: "center" },
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.9,
+    color: "#111",
+    marginBottom: 4,
+  },
+  date: {
+    fontSize: 13,
+    color: "#9A9A9A",
+    marginBottom: 20,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+    marginBottom: 12,
+    gap: 10,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "#9A9A9A",
+  },
+  bodyText: {
+    fontSize: 14,
+    color: "#111",
+    lineHeight: 21,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: "#5A5A5A",
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  emptyBanner: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9A9A9A",
+    textAlign: "center",
+  },
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#9A9A9A",
+    fontSize: 14,
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    padding: 14,
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 14,
+  },
 });

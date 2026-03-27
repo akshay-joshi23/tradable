@@ -16,16 +16,16 @@ const theme = {
   roundness: 3,
   colors: {
     ...MD3LightTheme.colors,
-    primary: "#065F46",
-    primaryContainer: "#D1FAE5",
-    secondary: "#059669",
-    secondaryContainer: "#ECFDF5",
-    background: "#F7FDF9",
+    primary: "#1a4d3a",
+    primaryContainer: "#d8f3dc",
+    secondary: "#2d6a4f",
+    secondaryContainer: "#d8f3dc",
+    background: "#FFFFFF",
     surface: "#FFFFFF",
-    surfaceVariant: "#ECFDF5",
+    surfaceVariant: "#F9FAFB",
     onPrimary: "#FFFFFF",
-    onPrimaryContainer: "#064E3B",
-    outline: "#D1FAE5",
+    onPrimaryContainer: "#1a4d3a",
+    outline: "#E5E7EB",
   },
 };
 
@@ -48,7 +48,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}>
+        <StripeProvider
+            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}
+            merchantIdentifier={process.env.EXPO_PUBLIC_APPLE_MERCHANT_ID ?? "merchant.com.akshayjoshi.tradable"}
+          >
           <PaperProvider theme={theme}>
             <AuthProvider>
               <RoleProvider>

@@ -1,4 +1,4 @@
-export type RequestStatus = "open" | "matched" | "in_call" | "completed" | "canceled";
+export type RequestStatus = "open" | "matched" | "in_call" | "completed" | "canceled" | "expired";
 
 export type ProProfile = {
   user_id: string;
@@ -16,6 +16,8 @@ export type ProProfile = {
   latitude: number | null;
   longitude: number | null;
   service_radius_miles: number | null;
+  stripe_account_id: string | null;
+  stripe_onboarding_complete: boolean;
   created_at: string;
 };
 
@@ -40,6 +42,7 @@ export type Request = {
   trade: string;
   description: string;
   status: RequestStatus;
+  payment_status: string | null;
   created_at: string;
   customer_id: string | null;
   claimed_by: string | null;

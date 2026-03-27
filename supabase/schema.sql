@@ -25,6 +25,8 @@ create table if not exists pro_profiles (
   latitude float8,
   longitude float8,
   service_radius_miles integer,
+  stripe_account_id text,
+  stripe_onboarding_complete boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -89,6 +91,12 @@ create policy "requests: authenticated update" on requests
 create policy "outcomes: authenticated all" on outcomes
   for all to authenticated using (true) with check (true);
 
+-- ─── Storage ─────────────────────────────────────────────────────────────────
+-- Run once in Supabase dashboard → Storage → New bucket:
+--   Name: avatars, Public: true
+-- Then add this RLS policy in Storage → Policies:
+--   INSERT/UPDATE: (auth.uid()::text) = (storage.foldername(name))[1]  (allow users to upload to their own path)
+
 -- ─── Migrations (run against existing deployments) ───────────────────────────
 -- alter table requests rename column customer_email to customer_id;
 -- alter table requests alter column customer_id type uuid using customer_id::uuid;
@@ -107,3 +115,5 @@ create policy "outcomes: authenticated all" on outcomes
 -- alter table pro_profiles add column if not exists cal_username text;
 -- alter table pro_profiles alter column cal_event_type_id drop not null;
 -- alter table pro_profiles add column if not exists consultation_price_cents integer not null default 0;
+-- alter table pro_profiles add column if not exists stripe_account_id text;
+-- alter table pro_profiles add column if not exists stripe_onboarding_complete boolean not null default false;

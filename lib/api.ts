@@ -99,7 +99,7 @@ export async function saveProProfile(params: {
   email: string;
   phone: string;
   trade: string;
-  calUsername: string;
+  calUsername?: string;
   consultationPriceCents: number;
   photoUrl?: string;
   displayName?: string;
@@ -116,7 +116,7 @@ export async function saveProProfile(params: {
       email: params.email,
       phone: params.phone,
       trade: params.trade,
-      calUsername: params.calUsername,
+      ...(params.calUsername ? { calUsername: params.calUsername } : {}),
       consultationPriceCents: params.consultationPriceCents,
       photoUrl: params.photoUrl,
       displayName: params.displayName,
@@ -127,6 +127,30 @@ export async function saveProProfile(params: {
       longitude: params.location?.longitude,
       serviceRadiusMiles: params.serviceRadiusMiles,
     }),
+  });
+}
+
+// ─── Avatar upload ────────────────────────────────────────────────────────────
+
+export async function uploadAvatar(localUri: string, userId: string): Promise<string> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+
+  const path = `${userId}.jpg`;
+  const { error } = await supabase.storage
+    .from("avatars")
+    .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function updateProPhotoUrl(photoUrl: string): Promise<void> {
+  await request("/api/pro/profile/photo", {
+    method: "PATCH",
+    body: JSON.stringify({ photoUrl }),
   });
 }
 
@@ -147,6 +171,13 @@ export async function setUserRole(role: "customer" | "pro"): Promise<"customer" 
     body: JSON.stringify({ role }),
   });
   return data.role as "customer" | "pro";
+}
+
+export async function updateConsultationFee(consultationPriceCents: number): Promise<void> {
+  await request("/api/pro/profile/fee", {
+    method: "PATCH",
+    body: JSON.stringify({ consultationPriceCents }),
+  });
 }
 
 // ─── Browse pros ──────────────────────────────────────────────────────────────
@@ -174,6 +205,7 @@ export type CustomerCall = {
   id: string;
   trade: string;
   description: string;
+  status: string;
   created_at: string;
   outcome: {
     diagnosis: string;
@@ -225,6 +257,17 @@ export async function confirmPayment(requestId: string, paymentIntentId: string)
     method: "POST",
     body: JSON.stringify({ requestId, paymentIntentId }),
   });
+}
+
+// ─── Stripe Connect ───────────────────────────────────────────────────────────
+
+export async function getStripeConnectOnboardingUrl(): Promise<string> {
+  const data = await request<{ url: string }>("/api/stripe/connect/onboard", { method: "POST" });
+  return data.url;
+}
+
+export async function getStripeConnectStatus(): Promise<{ connected: boolean; chargesEnabled?: boolean; payoutsEnabled?: boolean }> {
+  return request("/api/stripe/connect/status");
 }
 
 // ─── Cal.com booking ──────────────────────────────────────────────────────────

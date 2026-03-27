@@ -148,7 +148,7 @@ export default function CallScreen() {
     if (role === "pro") {
       router.replace(`/pro/outcome/${id}`);
     } else {
-      router.replace(`/customer/request/${id}`);
+      router.replace(`/customer/call-complete/${id}`);
     }
   };
 

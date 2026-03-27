@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import { ActivityIndicator, Text } from "react-native-paper";
+import { Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthGate } from "../../components/AuthGate";
 import { RoleGuard } from "../../components/RoleGuard";
-import { Screen } from "../../components/Screen";
 import { listProCalls, ProCall } from "../../lib/api";
 
 const TRADE_EMOJI: Record<string, string> = {
@@ -25,30 +26,27 @@ function CallRow({ call, onPress }: { call: ProCall; onPress: () => void }) {
 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.rowLeft}>
-        <View style={styles.tradeTag}>
-          <Text style={styles.emoji}>{emoji}</Text>
-          <Text style={styles.trade}>{call.trade}</Text>
+      <View style={styles.tradeAccent} />
+      <View style={styles.rowContent}>
+        <View style={styles.rowTop}>
+          <Text style={styles.tradeText}>{emoji} {call.trade}</Text>
+          <Text style={styles.dateText}>{date}</Text>
         </View>
         <Text style={styles.description} numberOfLines={1}>{call.description}</Text>
         {call.outcome ? (
-          <Text style={styles.diagnosis} numberOfLines={1}>
-            {call.outcome.diagnosis}
-          </Text>
+          <Text style={styles.diagnosis} numberOfLines={1}>{call.outcome.diagnosis}</Text>
         ) : (
           <Text style={styles.noOutcome}>No outcome recorded</Text>
         )}
       </View>
-      <View style={styles.rowRight}>
-        <Text style={styles.date}>{date}</Text>
-        <Text style={styles.chevron}>›</Text>
-      </View>
+      <MaterialCommunityIcons name="chevron-right" size={18} color="#9A9A9A" />
     </TouchableOpacity>
   );
 }
 
 export default function ProCallsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [calls, setCalls] = useState<ProCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,25 +68,32 @@ export default function ProCallsScreen() {
   return (
     <AuthGate>
       <RoleGuard requiredRole="pro">
-        <Screen>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
           <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadCalls} tintColor="#065F46" />}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadCalls} tintColor="#1A4230" />}
           >
-            <Text style={styles.heading}>Call History</Text>
-            <Text style={styles.subheading}>Your completed consultations</Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={18} color="#1A4230" />
+              <Text style={styles.backBtnText}>Dashboard</Text>
+            </TouchableOpacity>
 
-            {error ? (
+            <Text style={styles.title}>Call History</Text>
+            <Text style={styles.subtitle}>Your completed consultations</Text>
+
+            {error && (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
-            ) : null}
+            )}
 
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#065F46" />
-              </View>
-            ) : calls.length === 0 ? (
+            {!loading && calls.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyEmoji}>📋</Text>
                 <Text style={styles.emptyTitle}>No calls yet</Text>
@@ -106,24 +111,48 @@ export default function ProCallsScreen() {
               </View>
             )}
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#064E3B",
-    letterSpacing: -0.5,
-    marginTop: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  subheading: {
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    paddingTop: 12,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  backBtnText: {
     fontSize: 14,
-    color: "#475569",
-    marginTop: 2,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.9,
+    color: "#111",
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#5A5A5A",
     marginBottom: 20,
   },
   errorBanner: {
@@ -133,50 +162,58 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorText: { color: "#DC2626", fontSize: 14 },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
   emptyContainer: {
     alignItems: "center",
     paddingVertical: 60,
+    gap: 8,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#0F172A" },
+  emptyEmoji: { fontSize: 40 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
   emptySubtitle: {
-    fontSize: 14,
-    color: "#475569",
-    marginTop: 4,
+    fontSize: 13,
+    color: "#9A9A9A",
     textAlign: "center",
     paddingHorizontal: 32,
   },
   list: {
+    backgroundColor: "#FFF",
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#D1FAE5",
+    borderColor: "rgba(0,0,0,0.08)",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0FDF4",
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    paddingRight: 14,
   },
-  rowLeft: { flex: 1, gap: 4 },
-  rowRight: { alignItems: "flex-end", gap: 6, marginLeft: 12 },
-  tradeTag: {
+  tradeAccent: {
+    width: 3,
+    alignSelf: "stretch",
+    backgroundColor: "#1A4230",
+    borderRadius: 2,
+    marginRight: 14,
+  },
+  rowContent: {
+    flex: 1,
+    paddingVertical: 14,
+    gap: 3,
+  },
+  rowTop: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 5,
   },
-  emoji: { fontSize: 13 },
-  trade: { fontSize: 13, fontWeight: "600", color: "#065F46" },
-  description: { fontSize: 14, color: "#334155" },
-  diagnosis: { fontSize: 12, color: "#475569" },
-  noOutcome: { fontSize: 12, color: "#94A3B8", fontStyle: "italic" },
-  date: { fontSize: 12, color: "#94A3B8" },
-  chevron: { fontSize: 20, color: "#A7F3D0", lineHeight: 22 },
+  tradeText: { fontSize: 13, fontWeight: "600", color: "#111" },
+  dateText: { fontSize: 12, color: "#9A9A9A" },
+  description: { fontSize: 13, color: "#5A5A5A" },
+  diagnosis: { fontSize: 12, color: "#9A9A9A" },
+  noOutcome: { fontSize: 12, color: "#D1D5DB", fontStyle: "italic" },
 });

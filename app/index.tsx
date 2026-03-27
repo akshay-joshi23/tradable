@@ -9,7 +9,7 @@ export default function Index() {
   const { session, loading: authLoading } = useAuth();
   const { role, loading: roleLoading } = useRole();
 
-  if (authLoading || roleLoading) {
+  if (authLoading) {
     return (
       <Screen centered>
         <ActivityIndicator />
@@ -19,6 +19,14 @@ export default function Index() {
 
   if (!session) {
     return <Redirect href="/login" />;
+  }
+
+  if (roleLoading) {
+    return (
+      <Screen centered>
+        <ActivityIndicator />
+      </Screen>
+    );
   }
 
   if (role === "customer") {

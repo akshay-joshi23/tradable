@@ -1,257 +1,521 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthGate } from "../../../components/AuthGate";
 import { RoleGuard } from "../../../components/RoleGuard";
-import { Screen } from "../../../components/Screen";
 import { listPros, ProSummary } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth";
 
-const TRADE_EMOJI: Record<string, string> = {
-  Plumbing: "🚿",
-  Electrical: "⚡",
-  HVAC: "❄️",
-  Appliance: "🔌",
-  Handyman: "🔧",
-};
-
-const TRADE_COLOR: Record<string, string> = {
-  Plumbing: "#0EA5E9",
-  Electrical: "#F59E0B",
-  HVAC: "#6366F1",
-  Appliance: "#EC4899",
-  Handyman: "#059669",
-};
-
-const TRADES = ["All", "Plumbing", "Electrical", "HVAC", "Appliance", "Handyman"];
-
-function ProCard({ pro, onPress }: { pro: ProSummary; onPress: () => void }) {
-  const emoji = TRADE_EMOJI[pro.trade] ?? "🔧";
-  const color = TRADE_COLOR[pro.trade] ?? "#059669";
-  const name = pro.display_name ?? pro.full_name ?? "Pro";
-  const price = `$${Math.round(pro.consultation_price_cents / 100)}`;
-  const exp = pro.years_of_experience != null ? `${pro.years_of_experience} yr exp` : null;
-
-  return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.6}>
-      <View style={[styles.avatar, { backgroundColor: color + "18" }]}>
-        <Text style={styles.avatarEmoji}>{emoji}</Text>
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardName}>{name}</Text>
-        <View style={styles.cardMeta}>
-          <View style={[styles.tradeDot, { backgroundColor: color }]} />
-          <Text style={[styles.cardTrade, { color }]}>{pro.trade}</Text>
-          {exp ? <Text style={styles.separator}>·</Text> : null}
-          {exp ? <Text style={styles.cardExp}>{exp}</Text> : null}
-        </View>
-        {pro.certifications ? (
-          <Text style={styles.cardCerts} numberOfLines={1}>{pro.certifications}</Text>
-        ) : null}
-      </View>
-      <View style={styles.cardRight}>
-        <Text style={styles.cardPrice}>{price}</Text>
-        <Text style={styles.cardPriceLabel}>per call</Text>
-      </View>
-      <Text style={styles.chevron}>›</Text>
-    </TouchableOpacity>
-  );
-}
+const SERVICES = [
+  { emoji: "⚡", label: "Electrical" },
+  { emoji: "🔧", label: "Plumbing" },
+  { emoji: "❄️", label: "HVAC" },
+  { emoji: "🔌", label: "Appliance" },
+  { emoji: "🪛", label: "Handyman" },
+];
 
 export default function CustomerHomeTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { session } = useAuth();
   const [pros, setPros] = useState<ProSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedTrade, setSelectedTrade] = useState("All");
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const loadPros = useCallback(async (trade?: string) => {
-    setError(null);
-    setLoading(true);
+  const email = session?.user?.email ?? "";
+  const initials = email.slice(0, 2).toUpperCase();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const loadPros = useCallback(async (trade?: string, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
     try {
-      const data = await listPros(trade === "All" ? undefined : trade);
+      const data = await listPros(trade);
       setPros(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load pros.");
-    } finally {
+    } catch {}
+    finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => { loadPros(); }, []);
 
-  const handleTradeSelect = (trade: string) => {
-    setSelectedTrade(trade);
-    loadPros(trade === "All" ? undefined : trade);
+  const handleServicePress = (label: string) => {
+    const next = selectedService === label ? null : label;
+    setSelectedService(next);
+    loadPros(next ?? undefined);
   };
+
+  const filteredPros = pros.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const name = (p.display_name ?? p.full_name ?? "").toLowerCase();
+    return name.includes(q) || p.trade.toLowerCase().includes(q);
+  });
 
   return (
     <AuthGate>
       <RoleGuard requiredRole="customer">
-        <Screen>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadPros(selectedTrade === "All" ? undefined : selectedTrade)} tintColor="#059669" />}
+            contentContainerStyle={styles.scroll}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => loadPros(selectedService ?? undefined, true)}
+                tintColor="#1A4230"
+              />
+            }
           >
-            <Text style={styles.heading}>Find a Pro</Text>
-            <Text style={styles.subheading}>Browse verified professionals</Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.greeting}>{greeting}</Text>
+                <Text style={styles.title}>Find a pro</Text>
+              </View>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
-              {TRADES.map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.filterChip, selectedTrade === t && styles.filterChipActive]}
-                  onPress={() => handleTradeSelect(t)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.filterLabel, selectedTrade === t && styles.filterLabelActive]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
+            {/* Search */}
+            <View style={styles.searchBar}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#9A9A9A" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Electricians, plumbers…"
+                placeholderTextColor="#9A9A9A"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            {/* Get Help CTA */}
+            <TouchableOpacity
+              style={styles.ctaCard}
+              onPress={() => router.push("/customer/new-request")}
+              activeOpacity={0.85}
+            >
+              <View style={styles.ctaAccent} />
+              <View style={styles.ctaInner}>
+                <View style={styles.ctaIconBox}>
+                  <MaterialCommunityIcons name="wrench-outline" size={20} color="#1A4230" />
+                </View>
+                <View style={styles.ctaBody}>
+                  <Text style={styles.ctaLabel}>NEED SOMETHING FIXED?</Text>
+                  <Text style={styles.ctaTitle}>Post a new request</Text>
+                  <Text style={styles.ctaSub}>Get matched with a nearby pro</Text>
+                </View>
+              </View>
+              <View style={styles.ctaButtonRow}>
+                <View style={styles.ctaButton}>
+                  <Text style={styles.ctaButtonText}>Get help now →</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Services */}
+            <Text style={styles.sectionLabel}>Services</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.servicesRow}
+              style={styles.servicesScroll}
+            >
+              {SERVICES.map((s) => {
+                const active = selectedService === s.label;
+                return (
+                  <TouchableOpacity
+                    key={s.label}
+                    onPress={() => handleServicePress(s.label)}
+                    style={[styles.servicePill, active && styles.servicePillActive]}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.serviceEmoji}>{s.emoji}</Text>
+                    <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>
+                      {s.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            {/* Top Pros */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Top Pros</Text>
+              <TouchableOpacity onPress={() => router.push("/customer/pros")}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
 
             {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#059669" size="small" />
+              <View style={styles.centered}>
+                <ActivityIndicator color="#1A4230" />
               </View>
-            ) : pros.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>No pros found</Text>
-                <Text style={styles.emptySubtitle}>Try a different trade or check back later.</Text>
+            ) : filteredPros.length === 0 ? (
+              <View style={styles.centered}>
+                <Text style={styles.emptyText}>No pros found</Text>
+                <Text style={styles.emptySubtext}>Try a different trade or check back later.</Text>
               </View>
             ) : (
-              <View style={styles.list}>
-                {pros.map((pro) => (
-                  <ProCard
-                    key={pro.user_id}
-                    pro={pro}
-                    onPress={() => router.push(`/customer/pro/${pro.user_id}`)}
-                  />
-                ))}
+              <View style={styles.proList}>
+                {filteredPros.map((pro) => {
+                  const name = pro.display_name ?? pro.full_name ?? "Pro";
+                  const proInitials = name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                  const price = Math.round(pro.consultation_price_cents / 100);
+                  return (
+                    <TouchableOpacity
+                      key={pro.user_id}
+                      style={styles.proCard}
+                      onPress={() => router.push(`/customer/pro/${pro.user_id}`)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.proAvatar}>
+                        <Text style={styles.proAvatarText}>{proInitials}</Text>
+                      </View>
+                      <View style={styles.proInfo}>
+                        <Text style={styles.proName} numberOfLines={1}>{name}</Text>
+                        <Text style={styles.proTrade}>{pro.trade}</Text>
+                        {pro.years_of_experience != null && (
+                          <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="star" size={11} color="#C49A3C" />
+                            <Text style={styles.metaText}>{pro.years_of_experience} yrs exp</Text>
+                          </View>
+                        )}
+                        {pro.certifications && (
+                          <View style={styles.tagRow}>
+                            <View style={styles.tag}>
+                              <Text style={styles.tagText}>Certified</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.proRight}>
+                        <Text style={styles.proPrice}>${price}</Text>
+                        <Text style={styles.proUnit}>/call</Text>
+                        <View style={styles.availPill}>
+                          <Text style={styles.availText}>Available</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#0F172A",
-    letterSpacing: -0.5,
-    marginTop: 4,
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
   },
-  subheading: {
-    fontSize: 14,
-    color: "#64748B",
-    marginTop: 4,
+  scroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 20,
     marginBottom: 20,
   },
-  filterScroll: {
-    marginBottom: 20,
-    flexGrow: 0,
-  },
-  filterContent: {
-    gap: 8,
-  },
-  filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  filterChipActive: {
-    backgroundColor: "#059669",
-    borderColor: "#059669",
-  },
-  filterLabel: {
+  greeting: {
     fontSize: 13,
+    fontWeight: "400",
+    color: "#5A5A5A",
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.9,
+    color: "#111",
+  },
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#1A4230",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#64748B",
+    color: "#FFF",
   },
-  filterLabelActive: {
-    color: "#FFFFFF",
-  },
-  errorBanner: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 10,
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
     padding: 14,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#FEE2E2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  errorText: { color: "#DC2626", fontSize: 14 },
-  loadingContainer: { alignItems: "center", paddingVertical: 60 },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 64,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0F172A",
-    textAlign: "center",
-  },
-  emptySubtitle: {
+  searchInput: {
+    flex: 1,
     fontSize: 14,
-    color: "#94A3B8",
-    marginTop: 6,
-    textAlign: "center",
+    color: "#111",
   },
-  list: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+  ctaCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 28,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-    marginBottom: 32,
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  card: {
+  ctaAccent: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: "#1A4230",
+  },
+  ctaInner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingLeft: 12,
+    marginBottom: 14,
+  },
+  ctaIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#EDF2EF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaBody: {
+    flex: 1,
+  },
+  ctaLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.77,
+    color: "#1A4230",
+    marginBottom: 4,
+  },
+  ctaTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+    marginBottom: 2,
+  },
+  ctaSub: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#5A5A5A",
+  },
+  ctaButtonRow: {
+    paddingLeft: 12,
+  },
+  ctaButton: {
+    backgroundColor: "#1A4230",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+  },
+  ctaButtonText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    gap: 12,
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.77,
+    textTransform: "uppercase",
+    color: "#111",
+    marginBottom: 12,
+  },
+  seeAll: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1A4230",
+    marginBottom: 12,
+  },
+  servicesScroll: {
+    marginBottom: 24,
+  },
+  servicesRow: {
+    gap: 8,
+  },
+  servicePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFF",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  servicePillActive: {
+    backgroundColor: "#1A4230",
+    borderColor: "#1A4230",
+  },
+  serviceEmoji: {
+    fontSize: 14,
+  },
+  serviceLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#111",
+  },
+  serviceLabelActive: {
+    color: "#FFF",
+  },
+  proList: {
+    gap: 10,
+  },
+  proCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  proAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#EDF2EF",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  avatarEmoji: { fontSize: 20 },
-  cardBody: { flex: 1, gap: 3 },
-  cardName: { fontSize: 15, fontWeight: "600", color: "#0F172A" },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 5 },
-  tradeDot: { width: 5, height: 5, borderRadius: 3 },
-  cardTrade: { fontSize: 12, fontWeight: "600" },
-  separator: { fontSize: 12, color: "#CBD5E1" },
-  cardExp: { fontSize: 12, color: "#64748B" },
-  cardCerts: { fontSize: 12, color: "#94A3B8" },
-  cardRight: { alignItems: "flex-end", gap: 1 },
-  cardPrice: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
-  cardPriceLabel: { fontSize: 11, color: "#94A3B8" },
-  chevron: { fontSize: 20, color: "#CBD5E1", marginLeft: -4 },
+  proAvatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A4230",
+  },
+  proInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  proName: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+    color: "#111",
+  },
+  proTrade: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#9A9A9A",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 3,
+  },
+  metaText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#5A5A5A",
+  },
+  tagRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 4,
+  },
+  tag: {
+    backgroundColor: "#F9F8F6",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#9A9A9A",
+  },
+  proRight: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  proPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+    color: "#111",
+  },
+  proUnit: {
+    fontSize: 11,
+    fontWeight: "400",
+    color: "#9A9A9A",
+  },
+  availPill: {
+    backgroundColor: "#EDF2EF",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  availText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  centered: {
+    alignItems: "center",
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: "#9A9A9A",
+    textAlign: "center",
+  },
 });

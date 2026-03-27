@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Linking, ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Button, Text } from "react-native-paper";
+import { Linking, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthGate } from "../../../components/AuthGate";
 import { RoleGuard } from "../../../components/RoleGuard";
-import { Screen } from "../../../components/Screen";
 import { listPros, ProSummary } from "../../../lib/api";
 
 const TRADE_EMOJI: Record<string, string> = {
@@ -16,18 +17,10 @@ const TRADE_EMOJI: Record<string, string> = {
   Handyman: "🔧",
 };
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
-
 export default function CustomerProDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [pro, setPro] = useState<ProSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,25 +39,29 @@ export default function CustomerProDetailScreen() {
   const emoji = pro ? (TRADE_EMOJI[pro.trade] ?? "🔧") : "";
   const name = pro ? (pro.display_name ?? pro.full_name ?? "Pro") : "";
   const price = pro ? `$${Math.round(pro.consultation_price_cents / 100)}` : "";
+  const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <AuthGate>
       <RoleGuard requiredRole="customer">
-        <Screen>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Button
-              icon="arrow-left"
-              mode="text"
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              style={styles.backBtn}
               onPress={() => router.back()}
-              style={styles.backButton}
-              labelStyle={styles.backLabel}
+              activeOpacity={0.7}
             >
-              Browse
-            </Button>
+              <MaterialCommunityIcons name="arrow-left" size={18} color="#1A4230" />
+              <Text style={styles.backBtnText}>Browse</Text>
+            </TouchableOpacity>
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#065F46" />
+                <Text style={styles.loadingText}>Loading…</Text>
               </View>
             ) : error ? (
               <View style={styles.errorBanner}>
@@ -72,112 +69,252 @@ export default function CustomerProDetailScreen() {
               </View>
             ) : pro ? (
               <>
+                {/* Hero */}
                 <View style={styles.heroSection}>
                   <View style={styles.avatar}>
-                    <Text style={styles.avatarEmoji}>{emoji}</Text>
+                    <Text style={styles.avatarText}>{initials || emoji}</Text>
                   </View>
                   <Text style={styles.name}>{name}</Text>
-                  <Text style={styles.trade}>{pro.trade}</Text>
+                  <View style={styles.tradeBadge}>
+                    <Text style={styles.tradeText}>{emoji} {pro.trade}</Text>
+                  </View>
                 </View>
 
+                {/* Price card */}
                 <View style={styles.priceCard}>
                   <Text style={styles.priceAmount}>{price}</Text>
                   <Text style={styles.priceLabel}>per consultation</Text>
                 </View>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Details</Text>
-                  <View style={styles.infoCard}>
-                    <InfoRow label="Specialty" value={pro.trade} />
-                    {pro.years_of_experience != null && (
-                      <>
-                        <View style={styles.divider} />
-                        <InfoRow label="Experience" value={`${pro.years_of_experience} years`} />
-                      </>
-                    )}
-                    {pro.certifications ? (
-                      <>
-                        <View style={styles.divider} />
-                        <InfoRow label="Certifications" value={pro.certifications} />
-                      </>
-                    ) : null}
+                {/* Details */}
+                <View style={styles.card}>
+                  <Text style={styles.sectionLabel}>Details</Text>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Specialty</Text>
+                    <Text style={styles.detailValue}>{pro.trade}</Text>
                   </View>
+                  {pro.years_of_experience != null && (
+                    <>
+                      <View style={styles.divider} />
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Experience</Text>
+                        <Text style={styles.detailValue}>{pro.years_of_experience} years</Text>
+                      </View>
+                    </>
+                  )}
+                  {pro.certifications ? (
+                    <>
+                      <View style={styles.divider} />
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Certifications</Text>
+                        <Text style={[styles.detailValue, styles.detailValueRight]}>
+                          {pro.certifications}
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
                 </View>
 
+                {/* Book button */}
                 {pro.cal_username ? (
-                  <View style={styles.bookingSection}>
-                    <Button
-                      mode="contained"
-                      onPress={() => Linking.openURL(`https://cal.com/${pro.cal_username}`)}
+                  <View style={styles.bookSection}>
+                    <TouchableOpacity
                       style={styles.bookButton}
-                      contentStyle={styles.bookButtonContent}
-                      icon="calendar-plus"
+                      onPress={() => Linking.openURL(`https://cal.com/${pro.cal_username}`)}
+                      activeOpacity={0.85}
                     >
-                      Book a Consultation
-                    </Button>
+                      <MaterialCommunityIcons name="calendar-plus" size={20} color="#FFF" />
+                      <Text style={styles.bookButtonText}>Book a Consultation</Text>
+                    </TouchableOpacity>
                     <Text style={styles.bookNote}>
                       You'll be taken to their booking page to pick a time.
                     </Text>
                   </View>
                 ) : (
-                  <View style={styles.noBookingBanner}>
-                    <Text style={styles.noBookingText}>This pro hasn't set up online booking yet.</Text>
+                  <View style={styles.emptyBanner}>
+                    <Text style={styles.emptyText}>This pro hasn't set up online booking yet.</Text>
                   </View>
                 )}
               </>
             ) : null}
           </ScrollView>
-        </Screen>
+        </View>
       </RoleGuard>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  backButton: { alignSelf: "flex-start", marginLeft: -8, marginBottom: 8 },
-  backLabel: { color: "#065F46", fontSize: 14 },
-  loadingContainer: { alignItems: "center", paddingVertical: 60 },
-  errorBanner: { backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14 },
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F2EE",
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    paddingTop: 12,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#9A9A9A",
+    fontSize: 14,
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    padding: 14,
+  },
   errorText: { color: "#DC2626", fontSize: 14 },
-  heroSection: { alignItems: "center", marginBottom: 20, gap: 6 },
+  heroSection: {
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "#D1FAE5", alignItems: "center",
-    justifyContent: "center", marginBottom: 4,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1A4230",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  avatarEmoji: { fontSize: 36 },
-  name: { fontSize: 22, fontWeight: "700", color: "#064E3B" },
-  trade: { fontSize: 14, fontWeight: "600", color: "#065F46" },
+  avatarText: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: "#111",
+  },
+  tradeBadge: {
+    backgroundColor: "#EDF2EF",
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+  },
+  tradeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1A4230",
+  },
   priceCard: {
-    backgroundColor: "#ECFDF5", borderRadius: 14,
-    padding: 16, alignItems: "center", marginBottom: 24,
-    borderWidth: 1, borderColor: "#A7F3D0",
+    backgroundColor: "#1A4230",
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 16,
   },
-  priceAmount: { fontSize: 32, fontWeight: "800", color: "#064E3B" },
-  priceLabel: { fontSize: 13, color: "#475569", marginTop: 2 },
-  section: { marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 11, fontWeight: "700", color: "#059669",
-    letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8,
+  priceAmount: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: -1,
   },
-  infoCard: {
-    backgroundColor: "#FFFFFF", borderRadius: 14,
-    borderWidth: 1, borderColor: "#D1FAE5", overflow: "hidden",
+  priceLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
   },
-  infoRow: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", paddingHorizontal: 16, paddingVertical: 14,
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+    marginBottom: 16,
+    gap: 12,
   },
-  infoLabel: { fontSize: 14, color: "#475569" },
-  infoValue: { fontSize: 14, fontWeight: "600", color: "#0F172A", maxWidth: "60%", textAlign: "right" },
-  divider: { height: 1, backgroundColor: "#F0FDF4" },
-  bookingSection: { gap: 10, marginBottom: 32 },
-  bookButton: { borderRadius: 12 },
-  bookButtonContent: { height: 52 },
-  bookNote: { fontSize: 13, color: "#94A3B8", textAlign: "center" },
-  noBookingBanner: {
-    backgroundColor: "#ECFDF5", borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: "#D1FAE5",
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "#9A9A9A",
   },
-  noBookingText: { fontSize: 14, color: "#94A3B8", textAlign: "center" },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: "#5A5A5A",
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  detailValueRight: {
+    textAlign: "right",
+    maxWidth: "55%",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  bookSection: {
+    gap: 10,
+    marginBottom: 32,
+  },
+  bookButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#1A4230",
+    borderRadius: 14,
+    height: 52,
+  },
+  bookButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  bookNote: {
+    fontSize: 13,
+    color: "#9A9A9A",
+    textAlign: "center",
+  },
+  emptyBanner: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9A9A9A",
+    textAlign: "center",
+  },
 });

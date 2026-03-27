@@ -1,29 +1,31 @@
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 
-function TabIcon({ name, color, size }: { name: IconName; color: string; size: number }) {
-  return <MaterialCommunityIcons name={name} color={color} size={size} />;
+function TabIcon({ name, color }: { name: IconName; color: string }) {
+  return <MaterialCommunityIcons name={name} color={color} size={22} />;
 }
 
 export default function ProTabsLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#059669",
-        tabBarInactiveTintColor: "#94A3B8",
+        tabBarActiveTintColor: "#1A4230",
+        tabBarInactiveTintColor: "#9A9A9A",
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
-          borderTopColor: "#E2E8F0",
+          borderTopColor: "rgba(0,0,0,0.08)",
           borderTopWidth: 1,
-          height: 80,
-          paddingBottom: 16,
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom + 4,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
           marginTop: 2,
         },
@@ -33,28 +35,35 @@ export default function ProTabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <TabIcon name="home-outline" color={color} size={22} />,
-        }}
-      />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: "Bookings",
-          tabBarIcon: ({ color, size }) => <TabIcon name="calendar-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <TabIcon name="home-outline" color={color} />,
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
-          title: "Activity",
-          tabBarIcon: ({ color, size }) => <TabIcon name="lightning-bolt-outline" color={color} size={22} />,
+          title: "Jobs",
+          tabBarIcon: ({ color }) => <TabIcon name="briefcase-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: "Schedule",
+          tabBarIcon: ({ color }) => <TabIcon name="calendar-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: "Earnings",
+          tabBarIcon: ({ color }) => <TabIcon name="trending-up" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => <TabIcon name="account-circle-outline" color={color} size={22} />,
+          title: "Account",
+          tabBarIcon: ({ color }) => <TabIcon name="account-circle-outline" color={color} />,
         }}
       />
     </Tabs>

@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { ActivityIndicator, Button, HelperText, Text, TextInput } from "react-native-paper";
 
 import { Screen } from "./Screen";
@@ -72,27 +72,30 @@ export function LoginForm({ role, title, subtitle }: Props) {
   };
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.subtitle}>
+          {role === "pro" ? "Sign in to your pro account" : "Sign in to get started"}
+        </Text>
       </View>
 
       <View style={styles.card}>
         <Button
-          mode="outlined"
+          mode="contained"
           loading={googleLoading}
           onPress={handleGoogleSignIn}
           icon="google"
           style={styles.googleButton}
           contentStyle={styles.buttonContent}
+          buttonColor="#1a4d3a"
         >
           Continue with Google
         </Button>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>Or use email</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -104,6 +107,8 @@ export function LoginForm({ role, title, subtitle }: Props) {
           onChangeText={setEmail}
           mode="outlined"
           style={styles.input}
+          outlineColor="#e5e5e5"
+          activeOutlineColor="#1a4d3a"
         />
 
         <HelperText type="error" visible={Boolean(error)}>{error}</HelperText>
@@ -115,51 +120,61 @@ export function LoginForm({ role, title, subtitle }: Props) {
         ) : null}
 
         <Button
-          mode="contained"
+          mode="outlined"
           loading={sending}
           onPress={handleSendLink}
           style={styles.submitButton}
           contentStyle={styles.buttonContent}
+          textColor="#1a4d3a"
         >
-          Send magic link
+          Continue with email
         </Button>
       </View>
 
-      <Button mode="text" onPress={() => router.back()} style={styles.backButton}>
-        ← Back
-      </Button>
-    </Screen>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <Text style={styles.backText}>Back to role selection</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
   header: {
-    marginTop: 16,
-    marginBottom: 28,
+    alignItems: "center",
+    marginBottom: 32,
+    width: "100%",
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "700",
-    color: "#064E3B",
-    letterSpacing: -0.3,
+    color: "#1a1a1a",
+    marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
-    color: "#64748B",
-    marginTop: 6,
+    color: "#6B7280",
   },
   card: {
+    width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   googleButton: {
-    borderColor: "#D1FAE5",
     borderRadius: 12,
   },
   buttonContent: {
@@ -174,10 +189,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#e5e5e5",
   },
   dividerText: {
-    color: "#94A3B8",
+    color: "#6B7280",
     fontSize: 13,
   },
   input: {
@@ -195,11 +210,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   submitButton: {
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 12,
+    borderColor: "#1a4d3a",
   },
   backButton: {
-    marginTop: 16,
-    alignSelf: "center",
+    marginTop: 20,
+    padding: 8,
+  },
+  backText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

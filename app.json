@@ -16,10 +16,18 @@
       ["expo-web-browser", {"experimentalLauncherActivity": false}],
       ["expo-location", {
         "locationWhenInUsePermission": "Tradable needs your location to connect you with nearby pros."
+      }],
+      ["expo-image-picker", {
+        "photosPermission": "Tradable needs access to your photos to set a profile picture."
       }]
     ],
     "ios": {
       "bundleIdentifier": "com.akshayjoshi.tradable",
+      "entitlements": {
+        "com.apple.developer.in-app-payments": [
+          "merchant.com.akshayjoshi.tradable"
+        ]
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Tradable needs your location to connect you with nearby pros.",
         "NSCameraUsageDescription": "Tradable needs camera access for video calls.",
