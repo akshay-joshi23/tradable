@@ -804,6 +804,7 @@ app.post("/api/stripe/payment-intent", requireAuth, requireUserRole(["customer"]
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     amount,
     currency: "usd",
+    automatic_payment_methods: { enabled: true },
     metadata: { requestId, platformFeeCents: platformFee },
     description: `Tradable consultation with ${profile.full_name ?? "pro"}`,
   };

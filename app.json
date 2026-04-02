@@ -23,6 +23,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.akshayjoshi.tradable",
+      "buildNumber": "2",
       "entitlements": {
         "com.apple.developer.in-app-payments": [
           "merchant.com.akshayjoshi.tradable"

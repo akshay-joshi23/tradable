@@ -109,7 +109,10 @@ export default function RequestStatusScreen() {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
         merchantDisplayName: "Tradable",
-        applePay: { merchantCountryCode: "US" },
+        applePay: {
+          merchantCountryCode: "US",
+        },
+        merchantIdentifier: "merchant.com.akshayjoshi.tradable",
         style: "automatic",
       });
       if (initError) throw new Error(initError.message);
