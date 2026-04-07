@@ -167,22 +167,6 @@ export default function ProfileTab() {
       sub: profile?.stripe_onboarding_complete ? "Connected" : "Not connected",
       onPress: handleConnectStripe,
     },
-    {
-      icon: "file-document-outline",
-      label: "Tax documents",
-      onPress: () => {},
-    },
-    {
-      icon: "clock-outline",
-      label: "Payout schedule",
-      onPress: () => {},
-    },
-  ];
-
-  const supportRows: MenuRow[] = [
-    { icon: "help-circle-outline", label: "Help center", onPress: () => {} },
-    { icon: "file-check-outline", label: "Terms", onPress: () => {} },
-    { icon: "shield-outline", label: "Privacy", onPress: () => {} },
   ];
 
   return (
@@ -264,7 +248,6 @@ export default function ProfileTab() {
 
               <MenuSection title="MY PROFILE" rows={profileRows} />
               <MenuSection title="PAYMENTS" rows={paymentRows} />
-              <MenuSection title="SUPPORT & LEGAL" rows={supportRows} />
 
               {/* Log Out */}
               <TouchableOpacity

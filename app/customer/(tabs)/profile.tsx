@@ -17,23 +17,7 @@ type MenuSection = {
   items: { icon: string; label: string; sublabel?: string }[];
 };
 
-const MENU: MenuSection[] = [
-  {
-    section: "Account",
-    items: [
-      { icon: "credit-card-outline", label: "Payment methods", sublabel: "Manage cards" },
-      { icon: "bell-outline", label: "Notifications", sublabel: "Push, email, SMS" },
-    ],
-  },
-  {
-    section: "Support & Legal",
-    items: [
-      { icon: "shield-check-outline", label: "Privacy & security" },
-      { icon: "help-circle-outline", label: "Help center" },
-      { icon: "file-document-outline", label: "Terms of service" },
-    ],
-  },
-];
+const MENU: MenuSection[] = [];
 
 export default function CustomerProfileTab() {
   const { clearRole } = useRole();
