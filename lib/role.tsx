@@ -63,10 +63,11 @@ export function RoleProvider({ children }: PropsWithChildren) {
       role,
       loading,
       setRole: async (nextRole) => {
-        // Save to server first — server may return a different role if already set
-        const confirmedRole = await setUserRole(nextRole);
-        await SecureStore.setItemAsync(ROLE_KEY, confirmedRole);
-        setRoleState(confirmedRole);
+        // Store locally first so login never blocks on the network
+        await SecureStore.setItemAsync(ROLE_KEY, nextRole);
+        setRoleState(nextRole);
+        // Sync to server in background — non-blocking
+        setUserRole(nextRole).catch(() => {/* retried on next app load */});
       },
       clearRole: async () => {
         await SecureStore.deleteItemAsync(ROLE_KEY);
