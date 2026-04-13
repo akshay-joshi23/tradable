@@ -27,17 +27,11 @@ export function LoginForm({ role, title, subtitle }: Props) {
 
   useEffect(() => {
     if (!loading && session) {
-      setRole(role).then(() => router.replace("/"));
+      setRole(role)
+        .then(() => router.replace("/"))
+        .catch(() => router.replace("/"));
     }
   }, [loading, session]);
-
-  if (!loading && session) {
-    return (
-      <Screen centered>
-        <ActivityIndicator />
-      </Screen>
-    );
-  }
 
   const handleSendLink = async () => {
     setError(null);
