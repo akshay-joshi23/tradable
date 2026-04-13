@@ -24,34 +24,20 @@ export function RoleProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     const loadRole = async () => {
-      // Use SecureStore as a fast cache to avoid a network call on every launch
+      // Always resolve from SecureStore immediately — never block on network
       const cached = await SecureStore.getItemAsync(ROLE_KEY);
-      if (cached && isMounted) {
-        setRoleState(cached as Role);
+      if (isMounted) {
+        if (cached) setRoleState(cached as Role);
         setLoading(false);
-        // Verify against server in the background — silently fix stale cache
-        getUserRole().then((serverRole) => {
-          if (!isMounted || !serverRole) return;
-          if (serverRole !== cached) {
-            SecureStore.setItemAsync(ROLE_KEY, serverRole);
-            setRoleState(serverRole);
-          }
-        }).catch(() => {/* network unavailable — cached value is fine */});
-        return;
       }
-
-      // No cache — must fetch from server
-      try {
-        const serverRole = await getUserRole();
-        if (isMounted && serverRole) {
-          await SecureStore.setItemAsync(ROLE_KEY, serverRole);
-          setRoleState(serverRole);
+      // Sync with server in background to fix any stale cache
+      getUserRole().then((serverRole) => {
+        if (!isMounted || !serverRole) return;
+        if (serverRole !== cached) {
+          SecureStore.setItemAsync(ROLE_KEY, serverRole);
+          if (isMounted) setRoleState(serverRole);
         }
-      } catch {
-        // No session or server unreachable — user will need to log in
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      }).catch(() => {/* network unavailable — local value is fine */});
     };
 
     loadRole();
