@@ -169,6 +169,14 @@ export default function ProfileTab() {
     },
   ];
 
+  const legalRows: MenuRow[] = [
+    {
+      icon: "shield-outline",
+      label: "Privacy Policy",
+      onPress: () => Linking.openURL("https://jointradable.com/privacypolicy"),
+    },
+  ];
+
   return (
     <AuthGate>
       <RoleGuard requiredRole="pro">
@@ -248,6 +256,7 @@ export default function ProfileTab() {
 
               <MenuSection title="MY PROFILE" rows={profileRows} />
               <MenuSection title="PAYMENTS" rows={paymentRows} />
+              <MenuSection title="LEGAL" rows={legalRows} />
 
               {/* Log Out */}
               <TouchableOpacity

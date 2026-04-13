@@ -1,4 +1,4 @@
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,10 +14,17 @@ import { uploadAvatar } from "../../../lib/api";
 
 type MenuSection = {
   section: string;
-  items: { icon: string; label: string; sublabel?: string }[];
+  items: { icon: string; label: string; sublabel?: string; onPress?: () => void }[];
 };
 
-const MENU: MenuSection[] = [];
+const MENU: MenuSection[] = [
+  {
+    section: "Legal",
+    items: [
+      { icon: "shield-outline", label: "Privacy Policy", onPress: () => Linking.openURL("https://jointradable.com/privacypolicy") },
+    ],
+  },
+];
 
 export default function CustomerProfileTab() {
   const { clearRole } = useRole();
@@ -118,6 +125,7 @@ export default function CustomerProfileTab() {
                       styles.menuRow,
                       j < section.items.length - 1 && styles.menuRowBorder,
                     ]}
+                    onPress={item.onPress}
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuIconBox}>
