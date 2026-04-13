@@ -37,10 +37,6 @@ export default function Index() {
     return <Redirect href="/pro" />;
   }
 
-  // Session exists but no role yet — wait, don't redirect (avoids login loop)
-  return (
-    <Screen centered>
-      <ActivityIndicator />
-    </Screen>
-  );
+  // Session exists but no role — send back to login to pick one
+  return <Redirect href="/login" />;
 }
