@@ -15,14 +15,17 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const authHeaders = await getAuthHeaders();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
       ...(options?.headers ?? {}),
     },
+    signal: controller.signal,
     ...options,
-  });
+  }).finally(() => clearTimeout(timeout));
 
   const body = await response.json().catch(() => ({ ok: false, message: "Invalid server response." }));
 
