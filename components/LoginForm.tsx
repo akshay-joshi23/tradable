@@ -18,20 +18,27 @@ type Props = {
 export function LoginForm({ role, title, subtitle }: Props) {
   const router = useRouter();
   const { session, loading } = useAuth();
-  const { setRole } = useRole();
+  const { setRole, role: currentRole } = useRole();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Step 1: when a session arrives, persist the role (non-blocking)
   useEffect(() => {
-    if (!loading && session) {
-      setRole(role)
-        .then(() => router.replace(role === "pro" ? "/pro" : "/customer"))
-        .catch(() => router.replace(role === "pro" ? "/pro" : "/customer"));
+    if (!loading && session && currentRole !== role) {
+      setRole(role).catch(() => {});
     }
   }, [loading, session]);
+
+  // Step 2: navigate only after the role state has actually committed to context,
+  // eliminating the race where RoleGuard sees null role and redirects back to /login.
+  useEffect(() => {
+    if (session && currentRole === role) {
+      router.replace(role === "pro" ? "/pro" : "/customer");
+    }
+  }, [session, currentRole]);
 
   const handleSendLink = async () => {
     setError(null);

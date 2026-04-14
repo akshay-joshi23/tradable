@@ -24,17 +24,23 @@ export function RoleProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     const loadRole = async () => {
-      // Always resolve from SecureStore immediately — never block on network
-      const cached = await SecureStore.getItemAsync(ROLE_KEY);
-      if (isMounted) {
-        if (cached) setRoleState(cached as Role);
-        setLoading(false);
+      let cached: string | null = null;
+      try {
+        // Always resolve from SecureStore immediately — never block on network
+        cached = await SecureStore.getItemAsync(ROLE_KEY);
+      } catch {
+        // SecureStore unavailable — proceed with null role
+      } finally {
+        if (isMounted) {
+          if (cached) setRoleState(cached as Role);
+          setLoading(false);
+        }
       }
       // Sync with server in background to fix any stale cache
       getUserRole().then((serverRole) => {
         if (!isMounted || !serverRole) return;
         if (serverRole !== cached) {
-          SecureStore.setItemAsync(ROLE_KEY, serverRole);
+          SecureStore.setItemAsync(ROLE_KEY, serverRole).catch(() => {});
           if (isMounted) setRoleState(serverRole);
         }
       }).catch(() => {/* network unavailable — local value is fine */});
