@@ -25,10 +25,13 @@ export function LoginForm({ role, title, subtitle }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Step 1: when a session arrives, persist the role (non-blocking)
+  // Step 1: when a session arrives, write the role into Supabase user metadata.
+  // Once it commits, onAuthStateChange fires → currentRole updates → Step 2 navigates.
   useEffect(() => {
     if (!loading && session && currentRole !== role) {
-      setRole(role).catch(() => {});
+      setRole(role).catch((err) => {
+        setError(err instanceof Error ? err.message : "Could not set account type. Please try again.");
+      });
     }
   }, [loading, session]);
 

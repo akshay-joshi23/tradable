@@ -1,7 +1,8 @@
-import * as SecureStore from "expo-secure-store";
-import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useContext, useMemo } from "react";
 
-import { getUserRole, setUserRole } from "./api";
+import { supabase } from "./supabase";
+import { setUserRole } from "./api";
+import { useAuth } from "./auth";
 
 export type Role = "customer" | "pro";
 
@@ -12,58 +13,27 @@ type RoleContextValue = {
   clearRole: () => Promise<void>;
 };
 
-const ROLE_KEY = "tradable.role";
-
 const RoleContext = createContext<RoleContextValue | null>(null);
 
 export function RoleProvider({ children }: PropsWithChildren) {
-  const [role, setRoleState] = useState<Role | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { session, loading } = useAuth();
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadRole = async () => {
-      let cached: string | null = null;
-      try {
-        // Always resolve from SecureStore immediately — never block on network
-        cached = await SecureStore.getItemAsync(ROLE_KEY);
-      } catch {
-        // SecureStore unavailable — proceed with null role
-      } finally {
-        if (isMounted) {
-          if (cached) setRoleState(cached as Role);
-          setLoading(false);
-        }
-      }
-      // Sync with server in background to fix any stale cache
-      getUserRole().then((serverRole) => {
-        if (!isMounted || !serverRole) return;
-        if (serverRole !== cached) {
-          SecureStore.setItemAsync(ROLE_KEY, serverRole).catch(() => {});
-          if (isMounted) setRoleState(serverRole);
-        }
-      }).catch(() => {/* network unavailable — local value is fine */});
-    };
-
-    loadRole();
-    return () => { isMounted = false; };
-  }, []);
+  // Role lives in Supabase user metadata — no separate storage, no race conditions.
+  // When the session loads or updates (e.g. after OAuth), role is immediately available.
+  const role = (session?.user?.user_metadata?.role as Role | undefined) ?? null;
 
   const value = useMemo<RoleContextValue>(
     () => ({
       role,
       loading,
       setRole: async (nextRole) => {
-        // Store locally first so login never blocks on the network
-        await SecureStore.setItemAsync(ROLE_KEY, nextRole);
-        setRoleState(nextRole);
-        // Sync to server in background — non-blocking
-        setUserRole(nextRole).catch(() => {/* retried on next app load */});
+        // Write role into the session metadata so it's available without a network call.
+        await supabase.auth.updateUser({ data: { role: nextRole } });
+        // Sync to backend user_profiles table in the background.
+        setUserRole(nextRole).catch(() => {});
       },
       clearRole: async () => {
-        await SecureStore.deleteItemAsync(ROLE_KEY);
-        setRoleState(null);
+        // Session sign-out already clears the derived role; nothing else needed.
       },
     }),
     [role, loading]
