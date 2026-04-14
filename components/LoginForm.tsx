@@ -28,8 +28,8 @@ export function LoginForm({ role, title, subtitle }: Props) {
   useEffect(() => {
     if (!loading && session) {
       setRole(role)
-        .then(() => router.replace("/"))
-        .catch(() => router.replace("/"));
+        .then(() => router.replace(role === "pro" ? "/pro" : "/customer"))
+        .catch(() => router.replace(role === "pro" ? "/pro" : "/customer"));
     }
   }, [loading, session]);
 
